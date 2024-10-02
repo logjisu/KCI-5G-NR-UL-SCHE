@@ -81,11 +81,11 @@ public:
 
   void Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate, uint8_t period, uint32_t deadline);
 
-  // DL 하향 링크
+  // 하향링크(DL)
   void SendPacketDl ();
   void ScheduleTxDl ();
 
-  // UL 상향 링크
+  // 상향링크(UL)
   void SendPacketUl ();
   void ScheduleTxUl (uint8_t period);
   void ScheduleTxUl_Configuration();
@@ -139,7 +139,7 @@ void MyModel::Setup (Ptr<NetDevice> device, Address address, uint32_t packetSize
 }
 
 /*
- * DL, 하향 링크 트래픽에 대해 실행되는 첫 번째 이벤트입니다. 
+ * 하향링크(DL) 트래픽에 대해 실행되는 첫 번째 이벤트입니다. 
  */
 void StartApplicationDl (Ptr<MyModel> model)
 {
@@ -148,7 +148,7 @@ void StartApplicationDl (Ptr<MyModel> model)
 /*
  * Function은 단일 패킷을 생성하고 디바이스의 함수 전송을 직접 호출하여
  * 목적지 주소로 패킷을 전송합니다.
- * (DL TRAFFIC), 하향 링크 트래픽
+ * (DL TRAFFIC), 하향링크 트래픽
  */
 void MyModel::SendPacketDl ()
 {
@@ -183,7 +183,7 @@ void MyModel::ScheduleTxDl ()
 
 
 /*
- * UL, 상향 링크 트래픽에 대해 실행되는 첫 번째 이벤트입니다.
+ * 상향링크(UL) 트래픽에 대해 실행되는 첫 번째 이벤트입니다.
  */
 void StartApplicationUl (Ptr<MyModel> model)
 {
@@ -192,7 +192,7 @@ void StartApplicationUl (Ptr<MyModel> model)
 /*
  * Function은 단일 패킷을 생성하고 디바이스의 함수 전송을 직접 호출하여
  * 목적지 주소로 패킷을 전송합니다.
- * (UL TRAFFIC), 상향 링크 트래픽
+ * (UL TRAFFIC), 상향링크 트래픽
  */
 void MyModel::SendPacketUl ()
 {
@@ -233,7 +233,8 @@ void MyModel::ScheduleTxUl_Configuration (void)
 }
 
 /*
- * TraceSink, RxRlcPDU connects the trace sink with the trace source (RxPDU). It connects the UE with gNB and vice versa.
+ * TraceSink, RxRlcPDU는 트레이스 싱크와 트레이스 소스(RxPDU)를 연결합니다.
+ * UE를 gNB와 연결하거나 그 반대의 경우도 마찬가지입니다.
  */
 void RxRlcPDU (std::string path, uint16_t rnti, uint8_t lcid, uint32_t bytes, uint64_t rlcDelay)
 {
@@ -348,7 +349,7 @@ main (int argc, char *argv[]){
 
     int64_t randomStream = 1;
 
-    //Create the scenario
+    // 시나리오 생성
     GridScenarioHelper gridScenario;
     gridScenario.SetRows (1);
     gridScenario.SetColumns (gNbNum);
@@ -356,7 +357,7 @@ main (int argc, char *argv[]){
     gridScenario.SetBsHeight (10.0);
     gridScenario.SetUtHeight (1.5);
 
-    // must be set before BS number
+    // 기지국(BS) 이전에 설정되어야 합니다.
     gridScenario.SetSectorization (GridScenarioHelper::SINGLE);
     gridScenario.SetBsNumber (gNbNum);
     gridScenario.SetUtNumber (ueNumPergNb * gNbNum);
@@ -371,8 +372,11 @@ main (int argc, char *argv[]){
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper> ();
     nrHelper->SetBeamformingHelper (idealBeamformingHelper);
 
-    // Scheduler type: configured grant or grant based
-    /* false -> grant based : true -> configured grant */
+    /*************************************** 스케줄러 유형 선택 ******************************************
+    * configured grant <-> grant based
+    * true -> configured grant
+    * false -> grant based
+    ****************************************************************************************************/
     bool scheduler_CG = true;
     uint8_t configurationTime = 60;
 
@@ -383,11 +387,11 @@ main (int argc, char *argv[]){
 
     if (scheduler_CG)
       {
-        //Configuration time
-        // UE
+        // 구성 시간
+        // UE, 이동 단말
         nrHelper->SetUeMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
         nrHelper->SetUePhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
-        // gNB
+        // gNB, 기지국
         nrHelper->SetGnbMacAttribute ("ConfigurationTime", UintegerValue (configurationTime));
         nrHelper->SetGnbPhyAttribute ("ConfigurationTime", UintegerValue (configurationTime));
       }
@@ -398,27 +402,28 @@ main (int argc, char *argv[]){
 
     nrHelper->SetEpcHelper (epcHelper);
 
-    //Disable the SRS
+    // SRS 과정 비활성화
     nrHelper->SetSchedulerAttribute ("SrsSymbols", UintegerValue (0));
 
-    //Add the desired flexible pattern (the needed DL DATA symbols (default 0))
+    // 원하는 유연한 패턴을 추가합니다.(필요한 하향링크(DL) 데이터 symbols (기본값 0))
     nrHelper->SetSchedulerAttribute ("DlDataSymbolsFpattern", UintegerValue (0)); //symStart - 1
 
-    // enable or disable HARQ retransmissions
+    // HARQ 재전송 활성화 또는 비활성화
     nrHelper->SetSchedulerAttribute ("EnableHarqReTx", BooleanValue (false));
     Config::SetDefault ("ns3::NrHelper::HarqEnabled", BooleanValue (false));
 
-    // Select scheduler
+    // 스케줄러 선택
     if (sch != 0) 
     {
         nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaRR::GetTypeId ());
-        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch = 0 for TDMA
-                                                                           // 1 for 5GL-OFDMA
-                                                                           // 2 for Sym-OFDMA
-                                                                           // 3 for RB-OFDMA
+        nrHelper->SetSchedulerAttribute ("schOFDMA", UintegerValue (sch)); // sch
+                                                                           // 0 == TDMA
+                                                                           // 1 == 5GL-OFDMA
+                                                                           // 2 == Sym-OFDMA
+                                                                           // 3 == RB-OFDMA
     }
 
-    // Create one operational band containing one CC with one bandwidth part
+    // 하나의 대역폭 부분(BWP)으로 하나의 CC를 포함하는 하나의 운영 대역을 만듭니다.
     BandwidthPartInfoPtrVector allBwps;
     CcBwpCreator ccBwpCreator;
     const uint8_t numCcPerBand = 1;
@@ -427,29 +432,29 @@ main (int argc, char *argv[]){
                                                          numCcPerBand, BandwidthPartInfo::InH_OfficeOpen_nLoS);
 
 
-    // By using the configuration created, it is time to make the operation band
+    // 생성된 구성을 사용하여 작업 대역을 만들 때입니다.
     OperationBandInfo band1 = ccBwpCreator.CreateOperationBandContiguousCc (bandConf1);
 
     Config::SetDefault ("ns3::ThreeGppChannelModel::UpdatePeriod",TimeValue (MilliSeconds(0)));
     nrHelper->SetSchedulerAttribute ("FixedMcsDl", BooleanValue (true));
     nrHelper->SetSchedulerAttribute ("StartingMcsDl", UintegerValue(4));
 
-    // For CG it has to be true
+    // CG일 경우 참이어야 합니다.
     nrHelper->SetSchedulerAttribute ("FixedMcsUl", BooleanValue (true));
     nrHelper->SetSchedulerAttribute ("StartingMcsUl", UintegerValue(12));
 
     nrHelper->SetChannelConditionModelAttribute ("UpdatePeriod", TimeValue (MilliSeconds (0)));
     nrHelper->SetPathlossAttribute ("ShadowingEnabled", BooleanValue (true)); //false
 
-    // Error Model: UE and GNB with same spectrum error model.
-    // ns3::NrEesmIrT2 (256QAM), ns3::NrEesmIrT1 (64QAM) more robust but with less througput
+    // 오류 모델(Error Model): 동일한 스펙트럼 오류 모델을 가진 UE와 gNB.
+    // ns3::NrEesmIrT2 (256QAM), ns3::NrEesmIrT1 (64QAM) 이 두 가지는 강력하지만 처리량은 적습니다.
     std::string errorModel = "ns3::NrEesmIrT1"; 
     nrHelper->SetUlErrorModel (errorModel);
     nrHelper->SetDlErrorModel (errorModel);
 
-    // Both DL and UL AMC will have the same model behind.
-    nrHelper->SetGnbDlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel or NrAmc::ErrorModel
-    nrHelper->SetGnbUlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel or NrAmc::ErrorModel
+    // 하향링크(DL)과 상향링크(UL) AMC 모두 동일한 모델이 적용됩니다.
+    nrHelper->SetGnbDlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel 또는 NrAmc::ErrorModel
+    nrHelper->SetGnbUlAmcAttribute ("AmcModel", EnumValue (NrAmc::ErrorModel)); // NrAmc::ShannonModel 또는 NrAmc::ErrorModel
 
     bool fadingEnabled = true; 
     auto bandMask = NrHelper::INIT_PROPAGATION | NrHelper::INIT_CHANNEL;
@@ -461,27 +466,27 @@ main (int argc, char *argv[]){
     nrHelper->InitializeOperationBand (&band1, bandMask);
     allBwps = CcBwpCreator::GetAllBwps ({band1});
 
-    // Beamforming method
+    // 빔포밍(Beamforming) 방법
     idealBeamformingHelper->SetAttribute ("BeamformingMethod", TypeIdValue (QuasiOmniDirectPathBeamforming::GetTypeId ()));
 
-    // Antennas for all the UEs
+    // 모든 UE들을 위한 안테나
     nrHelper->SetUeAntennaAttribute ("NumRows", UintegerValue (2));
     nrHelper->SetUeAntennaAttribute ("NumColumns", UintegerValue (4));
     nrHelper->SetUeAntennaAttribute ("AntennaElement", PointerValue (CreateObject<IsotropicAntennaModel> ()));
 
-    // Antennas for all the gNbs
+    // 모든 gNb들을 위한 안테나
     nrHelper->SetGnbAntennaAttribute ("NumRows", UintegerValue (4));
     nrHelper->SetGnbAntennaAttribute ("NumColumns", UintegerValue (4));
     nrHelper->SetGnbAntennaAttribute ("AntennaElement", PointerValue (CreateObject<IsotropicAntennaModel> ()));
 
-    //Install and get the pointers to the NetDevices
+    // NetDevices 설치 및 포인터 가져오기
     NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (), allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice (gridScenario.GetUserTerminals (), allBwps);
 
     randomStream += nrHelper->AssignStreams (enbNetDev, randomStream);
     randomStream += nrHelper->AssignStreams (ueNetDev, randomStream);
 
-    // Set the attribute of the netdevice (enbNetDev.Get (0)) and bandwidth part (0)
+    // netdevice (enbNetDev.Get (0)) and bandwidth part (0)의 속성을 설정합니다.
     nrHelper->GetGnbPhy (enbNetDev.Get (0), 0)->SetAttribute ("Numerology", UintegerValue (numerologyBwp1));
 
     for (auto it = enbNetDev.Begin (); it != enbNetDev.End (); ++it)
@@ -499,7 +504,7 @@ main (int argc, char *argv[]){
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueNetDev));
 
-    // UL traffic
+    // 상향링크(UL) 트래픽
     std::vector <Ptr<MyModel>> v_modelUl;
     v_modelUl = std::vector<Ptr<MyModel>> (ueNumPergNb,{0});
     for (uint8_t ii=0; ii<ueNumPergNb; ++ii)
@@ -510,13 +515,13 @@ main (int argc, char *argv[]){
         Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
     }
 
-    // DL traffic
+    // 하향링크(DL) 트래픽
     //Ptr<MyModel> modelDl = CreateObject<MyModel> ();
     //modelDl -> Setup(enbNetDev.Get(0), ueNetDev.Get(0)->GetAddress(), 10, nPackets, DataRate("1Mbps"),20, uint32_t(100000));
     //Simulator::Schedule(MicroSeconds(0.099625), &StartApplicationDl, modelDl);
 
 
-   // attach UEs to the closest eNB
+   // 가장 가까운 eNB에 UE 연결하기
    nrHelper->AttachToClosestEnb (ueNetDev, enbNetDev);
 
    nrHelper->EnableTraces();
@@ -535,6 +540,8 @@ main (int argc, char *argv[]){
       {
         return EXIT_FAILURE;
       }
+
+    
 
     Simulator::Destroy ();
 
