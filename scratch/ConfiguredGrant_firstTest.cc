@@ -40,10 +40,10 @@
 #include "ns3/ipv4-global-routing-helper.h"
 #include "ns3/internet-module.h"
 #include "ns3/eps-bearer-tag.h"
-#include "ns3/grid-scenario-helper.h"
+// #include "ns3/grid-scenario-helper.h"
 #include "ns3/log.h"
 #include "ns3/antenna-module.h"
-
+#include "ns3/flow-monitor-module.h"
 
 
 using namespace ns3;
@@ -268,8 +268,8 @@ ConnectUlPdcpRlcTraces ()
 }
 
 
-int
-main (int argc, char *argv[]){
+/************************************************************ << main >> ************************************************************/
+int main (int argc, char *argv[]){
     uint16_t numerologyBwp1 = 1;
     uint32_t packetSize = 10;
     double centralFrequencyBand1 = 3550e6;
@@ -282,29 +282,17 @@ main (int argc, char *argv[]){
     bool enableUl = true;
     uint32_t nPackets = 1000;
     Time sendPacketTime = Seconds(0.2);
-    uint8_t sch = 2;
+    uint8_t sch = 2;    // 스케줄러 타입 (1: TDMA /2: OFDMA /3: Sym-OFDMA /4: RB-OFDMA)
 
     delay = MicroSeconds(10);
 
     CommandLine cmd;
-    cmd.AddValue ("numerologyBwp1",
-                  "The numerology to be used in bandwidth part 1",
-                  numerologyBwp1);
-    cmd.AddValue ("centralFrequencyBand1",
-                  "The system frequency to be used in band 1",
-                  centralFrequencyBand1);
-    cmd.AddValue ("bandwidthBand1",
-                  "The system bandwidth to be used in band 1",
-                  bandwidthBand1);
-    cmd.AddValue ("packetSize",
-                  "packet size in bytes",
-                   packetSize);
-    cmd.AddValue ("enableUl",
-                  "Enable Uplink",
-                  enableUl);
-    cmd.AddValue ("scheduler",
-                  "Scheduler",
-                  sch);
+    cmd.AddValue ("numerologyBwp1", "The numerology to be used in bandwidth part 1", numerologyBwp1);
+    cmd.AddValue ("centralFrequencyBand1", "The system frequency to be used in band 1", centralFrequencyBand1);
+    cmd.AddValue ("bandwidthBand1", "The system bandwidth to be used in band 1", bandwidthBand1);
+    cmd.AddValue ("packetSize", "packet size in bytes", packetSize);
+    cmd.AddValue ("enableUl", "Enable Uplink", enableUl);
+    cmd.AddValue ("scheduler", "Scheduler", sch);
     cmd.Parse (argc, argv);
 
     std::vector<uint32_t> v_init(ueNumPergNb);
@@ -348,23 +336,33 @@ main (int argc, char *argv[]){
     m_ScenarioFile << std::endl;
 
     int64_t randomStream = 1;
+  /************************************************** << 네트워크 토폴리지 구역 >> **************************************************
+   * gNB와 UE를 설정 할 수 있다. 자세한 사항은 GridScenarioHelper 문서를 참조하여 노드가 어떻게 분배되는지 확인하길 바랍니다.
+   * 내가 설정한 네트워크 토폴리지는 중앙에 gNB 1개가 생성되고, 12개의 UE가 무작위 위치에서 생성되고 1 ~ 14m/s로 움직인다.
+   */
+    NodeContainer gNBNodes;
+    NodeContainer ueNodes;
 
-    // 시나리오 생성
-    GridScenarioHelper gridScenario;
-    gridScenario.SetRows (1);
-    gridScenario.SetColumns (gNbNum);
-    gridScenario.SetHorizontalBsDistance (5.0);
-    gridScenario.SetBsHeight (10.0);
-    gridScenario.SetUtHeight (1.5);
+    gNBNodes.Create(gNbNum);
+    ueNodes.Create(ueNumPergNb * gNbNum);
 
-    // 기지국(BS) 이전에 설정되어야 합니다.
-    gridScenario.SetSectorization (GridScenarioHelper::SINGLE);
-    gridScenario.SetBsNumber (gNbNum);
-    gridScenario.SetUtNumber (ueNumPergNb * gNbNum);
-    gridScenario.SetScenarioHeight (10);   
-    gridScenario.SetScenarioLength (10);   
-    randomStream += gridScenario.AssignStreams (randomStream);
-    gridScenario.CreateScenario ();
+    MobilityHelper mobility;
+
+    // 기지국(BS, gNB) 위치 설정
+    Ptr<ListPositionAllocator> PositionAlloc = CreateObject<ListPositionAllocator> ();
+    PositionAlloc -> Add (Vector (0.0, 0.0, 1.5));  // gNB 좌표 (X,Y,Z)
+    mobility.SetPositionAllocator(PositionAlloc);
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.Install(gNBNodes);
+
+    // UE 위치 및 이동성 설정
+    mobility.SetPositionAllocator("ns3::RandomBoxPositionAllocator",
+                                  "X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=10.0]"),
+                                  "Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=10.0]"));
+    mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
+                              "Bounds", RectangleValue(Rectangle(0, 100, 0, 100)),
+                              "Speed", StringValue("ns3::UniformRandomVariable[Min=1.0|Max=14.0]"));
+    mobility.Install(ueNodes);
 
 
     Ptr<NrPointToPointEpcHelper> epcHelper = CreateObject<NrPointToPointEpcHelper> ();
@@ -480,8 +478,10 @@ main (int argc, char *argv[]){
     nrHelper->SetGnbAntennaAttribute ("AntennaElement", PointerValue (CreateObject<IsotropicAntennaModel> ()));
 
     // NetDevices 설치 및 포인터 가져오기
-    NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (), allBwps);
-    NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice (gridScenario.GetUserTerminals (), allBwps);
+    NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gNBNodes, allBwps);
+    NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice (ueNodes, allBwps);
+    // NetDeviceContainer enbNetDev = nrHelper->InstallGnbDevice (gridScenario.GetBaseStations (), allBwps);
+    // NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice (gridScenario.GetUserTerminals (), allBwps);
 
     randomStream += nrHelper->AssignStreams (enbNetDev, randomStream);
     randomStream += nrHelper->AssignStreams (ueNetDev, randomStream);
@@ -499,8 +499,11 @@ main (int argc, char *argv[]){
         DynamicCast<NrUeNetDevice> (*it)->UpdateConfig ();
       }
 
+    // 인터넷 스택 설치
     InternetStackHelper internet;
-    internet.Install (gridScenario.GetUserTerminals ());
+    internet.Install (ueNodes);
+    
+    // IP 주소 전달
     Ipv4InterfaceContainer ueIpIface;
     ueIpIface = epcHelper->AssignUeIpv4Address (NetDeviceContainer (ueNetDev));
 
@@ -521,11 +524,11 @@ main (int argc, char *argv[]){
     //Simulator::Schedule(MicroSeconds(0.099625), &StartApplicationDl, modelDl);
 
 
-   // 가장 가까운 eNB에 UE 연결하기
-   nrHelper->AttachToClosestEnb (ueNetDev, enbNetDev);
+    // 가장 가까운 eNB에 UE 연결하기
+    nrHelper->AttachToClosestEnb (ueNetDev, enbNetDev);
 
-   nrHelper->EnableTraces();
-   Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
+    nrHelper->EnableTraces();
+    Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
     Simulator::Stop (Seconds (10));
     Simulator::Run ();
