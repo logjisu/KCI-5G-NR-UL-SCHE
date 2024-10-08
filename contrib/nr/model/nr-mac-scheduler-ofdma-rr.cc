@@ -19,6 +19,10 @@
 #include "nr-mac-scheduler-ofdma-rr.h"
 #include "nr-mac-scheduler-ue-info-rr.h"
 #include <ns3/log.h>
+#include "ns3/simulator.h"
+#include <map>
+
+std::map<uint32_t, ns3::Time> packetCreationTimes;
 
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("NrMacSchedulerOfdmaRR");
@@ -64,6 +68,27 @@ NrMacSchedulerOfdmaRR::AssignedUlResources (const UePtrAndBufferReq &ue,
   NS_LOG_FUNCTION (this);
   GetFirst GetUe;
   GetUe (ue)->UpdateUlMetric (m_ulAmc);
+}
+
+// 패킷 수신 시점에 AoI를 계산하는 함수
+void OnPacketReceived(Ptr<Packet> packet){
+    uint32_t packetId = packet->GetUid();
+    
+    if (packetCreationTimes.find(packetId) != packetCreationTimes.end())
+    {
+        // 수신 시간 기록
+        Time packetReceptionTime = Simulator::Now();
+        
+        // AoI 계산 (수신 시간 - 생성 시간)
+        Time packetCreationTime = packetCreationTimes[packetId];
+        Time aoi = packetReceptionTime - packetCreationTime;
+        
+        // AoI 출력
+        std::cout << "Packet ID: " << packetId << " AoI: " << aoi.GetMilliSeconds() << " ms" << std::endl;
+        
+        // 패킷 정보를 삭제하여 메모리 관리
+        packetCreationTimes.erase(packetId);
+    }
 }
 
 std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,

@@ -44,7 +44,10 @@
 #include "ns3/log.h"
 #include "ns3/antenna-module.h"
 #include "ns3/flow-monitor-module.h"
+#include "ns3/simulator.h"
+#include <map>
 
+std::map<uint32_t, ns3::Time> packetCreationTimes; // 패킷 ID에 따른 생성 시간 저장
 
 using namespace ns3;
 
@@ -197,6 +200,10 @@ void StartApplicationUl (Ptr<MyModel> model)
 void MyModel::SendPacketUl ()
 {
   Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
+  
+  uint32_t packetId = pkt ->GetUid();
+  packetCreationTimes[packetId] = Simulator::Now(); // 생성 시간 저장
+
   Ipv4Header ipv4Header;
   ipv4Header.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
   pkt->AddHeader(ipv4Header);
@@ -276,8 +283,8 @@ int main (int argc, char *argv[]){
     double bandwidthBand1 = 20e6;
     uint8_t period = uint8_t(10);
 
-    uint16_t gNbNum = 1;
-    uint16_t ueNumPergNb = 14;
+    uint16_t gNbNum = 1;        // gNB 개수 *******************************************************************************************
+    uint16_t ueNumPergNb = 12;  // UE 개수 *******************************************************************************************
 
     bool enableUl = true;
     uint32_t nPackets = 1000;
@@ -510,12 +517,25 @@ int main (int argc, char *argv[]){
     // 상향링크(UL) 트래픽
     std::vector <Ptr<MyModel>> v_modelUl;
     v_modelUl = std::vector<Ptr<MyModel>> (ueNumPergNb,{0});
-    for (uint8_t ii=0; ii<ueNumPergNb; ++ii)
-    {
-        Ptr<MyModel> modelUl = CreateObject<MyModel> ();
-        modelUl -> Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), v_packet[ii], nPackets, DataRate("1Mbps"),v_period[ii], v_deadline[ii]);
-        v_modelUl[ii] = modelUl;
-        Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
+
+    for (uint8_t ii=0; ii<ueNumPergNb; ++ii){
+      Ptr<MyModel> modelUl = CreateObject<MyModel> ();
+      // 긴급 데이터를 전송하는 UE를 구분하여 트래픽 프로파일 설정
+      if (ii % 2 == 0){  // 짝수는 긴급 UE
+        modelUl->Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), 
+        v_packet[ii], nPackets, DataRate("10Mbps"),  // 초저지연 트래픽
+        v_period[ii], v_deadline[ii] / 2);  // 더 짧은 대기 시간
+      }
+      else{  // 홀수는 일반 UE
+        modelUl->Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), 
+        v_packet[ii], nPackets, DataRate("1Mbps"),  // 일반 트래픽
+        v_period[ii], v_deadline[ii]);  // 일반 대기 시간
+      }
+      
+      //modelUl -> Setup(ueNetDev.Get(ii), enbNetDev.Get(0)->GetAddress(), v_packet[ii], nPackets, DataRate("1Mbps"),v_period[ii], v_deadline[ii]);
+      
+      v_modelUl[ii] = modelUl;
+      Simulator::Schedule(MicroSeconds(v_init[ii]), &StartApplicationUl, v_modelUl[ii]);
     }
 
     // 하향링크(DL) 트래픽
@@ -535,14 +555,12 @@ int main (int argc, char *argv[]){
 
     std::cout<<"\n FIN. "<<std::endl;
 
-    if (g_rxPdcpCallbackCalled && g_rxRxRlcPDUCallbackCalled)
-      {
-        return EXIT_SUCCESS;
-      }
-    else
-      {
-        return EXIT_FAILURE;
-      }
+    if (g_rxPdcpCallbackCalled && g_rxRxRlcPDUCallbackCalled){
+      return EXIT_SUCCESS;
+    }
+    else{
+      return EXIT_FAILURE;
+    }
 
     
 
