@@ -73,18 +73,18 @@ private:
   NrGnbMac* m_mac;
 };
 
-uint64_t
-NrGnbMac::CalculateAgeForRnti(uint16_t rnti)
-{
-  auto it = m_packetCreationTimeMap.find(rnti);
-  if (it != m_packetCreationTimeMap.end())
-  {
-    uint64_t creationTime = it->second;
-    uint64_t currentTime = Simulator::Now().GetNanoSeconds();
-    return currentTime - creationTime;
-  }
-  return 0; // 생성된 패킷이 없으면 Age는 0으로 반환
-}
+// uint64_t
+// NrGnbMac::CalculateAgeForRnti(uint16_t rnti)
+// {
+//   auto it = m_packetCreationTimeMap.find(rnti);
+//   if (it != m_packetCreationTimeMap.end())
+//   {
+//     uint64_t creationTime = it->second;
+//     uint64_t currentTime = Simulator::Now().GetNanoSeconds();
+//     return currentTime - creationTime;
+//   }
+//   return 0; // 생성된 패킷이 없으면 Age는 0으로 반환
+// }
 
 NrGnbMacMemberEnbCmacSapProvider::NrGnbMacMemberEnbCmacSapProvider (NrGnbMac* mac)
   : m_mac (mac)
@@ -935,7 +935,7 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
 
   // 패킷 생성 시간 태그 확인
     PacketCreationTimeTag creationTimeTag;
-    if (p->FindFirstMatchingByteTag(creationTimeTag))
+    if (p->RemovePacketTag(creationTimeTag))
     {
         uint64_t creationTime = creationTimeTag.GetCreationTime();
         uint64_t currentTime = Simulator::Now().GetNanoSeconds();
@@ -943,10 +943,11 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
 
         // 긴급 패킷 여부 확인
         PacketUrgencyTag urgencyTag;
-        if (p->FindFirstMatchingByteTag(urgencyTag) && urgencyTag.GetUrgency())
+        if (p->RemovePacketTag(urgencyTag) && urgencyTag.GetUrgency())
         {
             age *= 100;  // 긴급 패킷인 경우 Age에 100을 곱함
         }
+        NS_LOG_INFO("UE"<< rnti << ", Age 값 =" << age);
     }
 
   // Try to peek whatever header; in the first byte there will be the LC ID.
@@ -1228,11 +1229,6 @@ NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters i
   for (unsigned islot = 0; islot < ind.m_slotAllocInfo.m_varTtiAllocInfo.size (); islot++)
     {
       VarTtiAllocInfo &varTtiAllocInfo = ind.m_slotAllocInfo.m_varTtiAllocInfo[islot];
-
-      // Age 값을 각 UE의 스케줄링 정보에 추가
-      uint16_t rnti = varTtiAllocInfo.m_dci->m_rnti;
-      uint64_t age = CalculateAgeForRnti(rnti);  // RNTI에 해당하는 Age 계산
-      varTtiAllocInfo.m_age = age;  // 새 필드를 추가해 Age를 포함시킴
       
       if (varTtiAllocInfo.m_dci->m_type != DciInfoElementTdma::CTRL
           && varTtiAllocInfo.m_dci->m_format == DciInfoElementTdma::DL)

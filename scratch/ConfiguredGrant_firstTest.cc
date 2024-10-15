@@ -333,6 +333,10 @@ int main (int argc, char *argv[])
   cmd.AddValue ("scheduler", "Scheduler", sch);
   cmd.Parse (argc, argv);
 
+  //로그
+  LogComponentEnable ("NrGnbMac", LOG_INFO);
+  LogComponentEnable ("NrMacSchedulerOfdmaPF", LOG_INFO);
+
   std::vector<uint32_t> v_init(ueNumPergNb);
   std::vector<uint32_t> v_period(ueNumPergNb);
   std::vector<uint32_t> v_deadline(ueNumPergNb);
