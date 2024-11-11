@@ -18,199 +18,38 @@
  */
 #pragma once
 
-#include "nr-mac-scheduler-ue-info-rr.h"
+#include "nr-mac-scheduler-ns3.h"
 
 namespace ns3 {
 
-/**
- * \ingroup scheduler
- * \brief UE representation for a proportional fair scheduler
- *
- * The representation stores the current throughput, the average throughput,
- * and the last average throughput, as well as providing comparison functions
- * to sort the UEs in case of a PF scheduler.
- *
- * \see CompareUeWeightsDl
- * \see CompareUeWeightsUl
- */
 class NrMacSchedulerUeInfoAG : public NrMacSchedulerUeInfo
 {
 public:
-  /**
-   * \brief NrMacSchedulerUeInfoPF constructor
-   * \param rnti RNTI of the UE
-   * \param beamConfId BeamConfId of the UE
-   * \param fn A function that tells how many RB per RBG
-   */
-  NrMacSchedulerUeInfoAG (float alpha, uint16_t rnti, BeamConfId beamConfId, const GetRbPerRbgFn &fn)
-    : NrMacSchedulerUeInfo (rnti, beamConfId, fn),
-    m_alpha (alpha)
+  NrMacSchedulerUeInfoAG (uint16_t rnti, BeamConfId beamConfId, const GetRbPerRbgFn &fn)
+   : NrMacSchedulerUeInfo (rnti, beamConfId, fn)
   {
   }
 
-  /**
-   * \brief Reset DL PF scheduler info
-   *
-   * Set the last average throughput to the current average throughput,
-   * and zeroes the average throughput as well as the current throughput.
-   *
-   * It calls also NrMacSchedulerUeInfo::ResetDlSchedInfo.
-   */
-  virtual void ResetDlSchedInfo () override
-  {
-    m_lastAvgTputDl = m_avgTputDl;
-    m_avgTputDl = 0.0;
-    m_currTputDl = 0.0;
-    m_potentialTputDl = 0.0;
-    NrMacSchedulerUeInfo::ResetDlSchedInfo ();
-  }
-
-  /**
-   * \brief Reset UL PF scheduler info
-   *
-   * Set the last average throughput to the current average throughput,
-   * and zeroes the average throughput as well as the current throughput.
-   *
-   * It also calls NrMacSchedulerUeInfo::ResetUlSchedInfo.
-   */
-  virtual void ResetUlSchedInfo () override
-  {
-    m_lastAvgTputUl = m_avgTputUl;
-    m_avgTputUl = 0.0;
-    m_currTputUl = 0.0;
-    m_potentialTputUl = 0.0;
-    NrMacSchedulerUeInfo::ResetUlSchedInfo ();
-  }
-
-  /**
-   * \brief Reset the DL avg Th to the last value
-   */
-  virtual void ResetDlMetric () override
-  {
-    NrMacSchedulerUeInfo::ResetDlMetric ();
-    m_avgTputDl = m_lastAvgTputDl;
-  }
-
-  /**
-   * \brief Reset the UL avg Th to the last value
-   */
-  virtual void ResetUlMetric () override
-  {
-    NrMacSchedulerUeInfo::ResetUlMetric ();
-    m_avgTputUl = m_lastAvgTputUl;
-  }
-
-  /**
-   * \brief Update the PF metric for downlink
-   * \param totAssigned the resources assigned
-   * \param timeWindow the time window
-   * \param amc a pointer to the AMC
-   *
-   * Updates m_currTputDl and m_avgTputDl by keeping in consideration
-   * the assigned resources (in form of TBS) and the time window.
-   * It gets the tbSise by calling NrMacSchedulerUeInfo::UpdateDlMetric.
-   */
-  void UpdateDlPFMetric (const NrMacSchedulerNs3::FTResources &totAssigned,
-                         double timeWindow,
-                         const Ptr<const NrAmc> &amc);
-
-  /**
-   * \brief Update the PF metric for uplink
-   * \param totAssigned the resources assigned
-   * \param timeWindow the time window
-   * \param amc a pointer to the AMC
-   *
-   * Updates m_currTputUl and m_avgTputUl by keeping in consideration
-   * the assigned resources (in form of TBS) and the time window.
-   * It gets the tbSise by calling NrMacSchedulerUeInfo::UpdateUlMetric.
-   */
-  void UpdateUlPFMetric (const NrMacSchedulerNs3::FTResources &totAssigned,
-                         double timeWindow,
-                         const Ptr<const NrAmc> &amc);
-
-  /**
-   * \brief Calculate the Potential throughput for downlink
-   * \param assignableInIteration resources assignable
-   * \param amc a pointer to the AMC
-   */
-  void CalculatePotentialTPutDl (const NrMacSchedulerNs3::FTResources &assignableInIteration,
-                               const Ptr<const NrAmc> &amc);
-
-  /**
-   * \brief Calculate the Potential throughput for uplink
-   * \param assignableInIteration resources assignable
-   * \param amc a pointer to the AMC
-   */
-  void CalculatePotentialTPutUl (const NrMacSchedulerNs3::FTResources &assignableInIteration,
-                               const Ptr<const NrAmc> &amc);
-
-
-  /**
-   * \brief comparison function object (i.e. an object that satisfies the
-   * requirements of Compare) which returns ​true if the first argument is less
-   * than (i.e. is ordered before) the second.
-   * \param lue Left UE
-   * \param rue Right UE
-   * \return true if the PF metric of the left UE is higher than the right UE
-   *
-   * The PF metric is calculated as following:
-   *
-   * \f$ pfMetric_{i} = std::pow(potentialTPut_{i}, alpha) / std::max (1E-9, m_avgTput_{i}) \f$
-   *
-   * Alpha is a fairness metric. Please note that the throughput is calculated
-   * in bit/symbol.
-   */
   static bool CompareUeWeightsDl (const NrMacSchedulerNs3::UePtrAndBufferReq &lue,
-                                  const NrMacSchedulerNs3::UePtrAndBufferReq &rue)
+                                  const NrMacSchedulerNs3::UePtrAndBufferReq & rue)
   {
-    auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*> (lue.first.get ());
-    auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*> (rue.first.get ());
+    auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(lue.first.get());
+    auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(rue.first.get());
 
-    double lPfMetric = std::pow (luePtr->m_potentialTputDl, luePtr->m_alpha) / std::max (1E-9, luePtr->m_avgTputDl);
-    double rPfMetric = std::pow (ruePtr->m_potentialTputDl, ruePtr->m_alpha) / std::max (1E-9, ruePtr->m_avgTputDl);
-
-    return (lPfMetric > rPfMetric);
+    // Age가 큰 UE를 더 높은 우선순위로 설정
+    return luePtr->m_age > ruePtr->m_age;
   }
 
-  /**
-   * \brief comparison function object (i.e. an object that satisfies the
-   * requirements of Compare) which returns ​true if the first argument is less
-   * than (i.e. is ordered before) the second.
-   * \param lue Left UE
-   * \param rue Right UE
-   * \return true if the PF metric of the left UE is higher than the right UE
-   *
-   * The PF metric is calculated as following:
-   *
-   * \f$ pfMetric_{i} = std::pow(potentialTPut_{i}, alpha) / std::max (1E-9, m_avgTput_{i}) \f$
-   *
-   * Alpha is a fairness metric. Please note that the throughput is calculated
-   * in bit/symbol.
-   */
   static bool CompareUeWeightsUl (const NrMacSchedulerNs3::UePtrAndBufferReq &lue,
-                                  const NrMacSchedulerNs3::UePtrAndBufferReq &rue)
+                                  const NrMacSchedulerNs3::UePtrAndBufferReq & rue)
   {
-    auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*> (lue.first.get ());
-    auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*> (rue.first.get ());
-    
-
-    double lPfMetric = std::pow (luePtr->m_potentialTputUl, luePtr->m_alpha) / std::max (1E-9, luePtr->m_avgTputUl);
-    double rPfMetric = std::pow (ruePtr->m_potentialTputUl, ruePtr->m_alpha) / std::max (1E-9, ruePtr->m_avgTputUl);
-
-    return (lPfMetric > rPfMetric);
+    auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(lue.first.get());
+    auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(rue.first.get());
+    // Age가 큰 UE를 더 높은 우선순위로 설정
+    return luePtr->m_age > ruePtr->m_age;
   }
 
-  double m_currTputDl {0.0};    //!< Current slot throughput in downlink
-  double m_avgTputDl  {0.0};    //!< Average throughput in downlink during all the slots
-  double m_lastAvgTputDl {0.0}; //!< Last average throughput in downlink
-  double m_potentialTputDl {0.0}; //!< Potential throughput in downlink in one assignable resource (can be a symbol or a RBG)
-  float  m_alpha {0.0};         //!< PF fairness metric
-
-  double m_currTputUl {0.0};    //!< Current slot throughput in uplink
-  double m_avgTputUl  {0.0};    //!< Average throughput in uplink during all the slots
-  double m_lastAvgTputUl {0.0}; //!< Last average throughput in uplink
-  double m_potentialTputUl {0.0}; //!< Potential throughput in uplink in one assignable resource (can be a symbol or a RBG)
+  uint64_t m_age {0};
 };
-
 
 } // namespace ns3

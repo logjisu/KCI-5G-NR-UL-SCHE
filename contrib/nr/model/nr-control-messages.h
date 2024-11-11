@@ -573,6 +573,8 @@ public:
 
   void SetTrafficDeadline (Time traffDeadlineTime);
 
+  //void SetAge (uint64_t age);
+
   /**
    * \brief Get the RNTI of this message
    * \return RNTI
@@ -589,6 +591,8 @@ public:
 
   Time GetTrafficDeadline (void) const;
 
+  uint64_t GetAge (void) const;
+
 private:
   uint16_t m_rnti {0}; //!< RNTI
   uint32_t m_bufSr {0}; //!< CG Packet size
@@ -596,6 +600,7 @@ private:
   uint8_t m_traffP {0}; //!< CG Traffic periodicity
   Time m_traffStartTime; //!< CG Traffic generation time
   Time m_traffDeadlineTime; //!< CG Traffic maximum deadline
+  uint64_t m_age {0};
 };
 
 }

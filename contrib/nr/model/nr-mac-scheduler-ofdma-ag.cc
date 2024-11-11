@@ -18,140 +18,72 @@
  */
 #include "nr-mac-scheduler-ofdma-ag.h"
 #include "nr-mac-scheduler-ue-info-ag.h"
-#include <algorithm>
-#include <ns3/double.h>
 #include <ns3/log.h>
-#include "a-packet-tags.h"
+
 
 namespace ns3 {
-
 NS_LOG_COMPONENT_DEFINE ("NrMacSchedulerOfdmaAG");
-NS_OBJECT_ENSURE_REGISTERED (NrMacSchedulerOfdmaAG);
+
 
 TypeId NrMacSchedulerOfdmaAG::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::NrMacSchedulerOfdmaAG")
-    .SetParent<NrMacSchedulerOfdmaRR> ()
-    .AddConstructor<NrMacSchedulerOfdmaAG> ()
-    .AddAttribute ("FairnessIndex",
-                   "Value (between 0 and 1) that defines the PF metric (1 is the traditional 3GPP PF, 0 is RR in throughput",
-                   DoubleValue (1),
-                   MakeDoubleAccessor (&NrMacSchedulerOfdmaAG::SetFairnessIndex,
-                                       &NrMacSchedulerOfdmaAG::GetFairnessIndex),
-                   MakeDoubleChecker<float> (0, 1))
-    .AddAttribute ("LastAvgTPutWeight",
-                   "Weight of the last average throughput in the average throughput calculation",
-                   DoubleValue (99),
-                   MakeDoubleAccessor (&NrMacSchedulerOfdmaAG::SetTimeWindow,
-                                       &NrMacSchedulerOfdmaAG::GetTimeWindow),
-                   MakeDoubleChecker<float> (0))
-  ;
+    .SetParent<NrMacSchedulerOfdma> ()
+    .AddConstructor<NrMacSchedulerOfdmaAG> ();
   return tid;
 }
 
-NrMacSchedulerOfdmaAG::NrMacSchedulerOfdmaAG () : NrMacSchedulerOfdmaRR ()
-{
-
-}
-
-void NrMacSchedulerOfdmaAG::SetFairnessIndex (double v)
-{
-  NS_LOG_FUNCTION (this);
-  m_alpha = v;
-}
-
-double NrMacSchedulerOfdmaAG::GetFairnessIndex () const
-{
-  NS_LOG_FUNCTION (this);
-  return m_alpha;
-}
-
-void NrMacSchedulerOfdmaAG::SetTimeWindow (double v)
-{
-  NS_LOG_FUNCTION (this);
-  m_timeWindow = v;
-}
-
-double NrMacSchedulerOfdmaAG::GetTimeWindow () const
-{
-  NS_LOG_FUNCTION (this);
-  return m_timeWindow;
+NrMacSchedulerOfdmaAG::NrMacSchedulerOfdmaAG () : NrMacSchedulerOfdma (){
+  
 }
 
 std::shared_ptr<NrMacSchedulerUeInfo>
-NrMacSchedulerOfdmaAG::CreateUeRepresentation (const NrMacCschedSapProvider::CschedUeConfigReqParameters &params) const
+NrMacSchedulerOfdmaAG::CreateUeRepresentation (const NrMacCschedSapProvider::CschedUeConfigReqParameters& params) const
 {
   NS_LOG_FUNCTION (this);
-  return std::make_shared <NrMacSchedulerUeInfoAG> (m_alpha, params.m_rnti, params.m_beamConfId,
-                                                        std::bind(&NrMacSchedulerOfdmaAG::GetNumRbPerRbg, this));
-}
-
-std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
-                   const NrMacSchedulerNs3::UePtrAndBufferReq &rhs )>
-NrMacSchedulerOfdmaAG::GetUeCompareDlFn () const
-{
-  NS_LOG_FUNCTION (this);
-  return NrMacSchedulerUeInfoAG::CompareUeWeightsDl;
-}
-
-std::function<bool (const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
-                    const NrMacSchedulerNs3::UePtrAndBufferReq &rhs)>
-NrMacSchedulerOfdmaAG::GetUeCompareUlFn () const
-{
-  NS_LOG_FUNCTION (this);
-  return NrMacSchedulerUeInfoAG::CompareUeWeightsUl;
+  return std::make_shared<NrMacSchedulerUeInfoAG> (params.m_rnti, params.m_beamConfId,
+                                                  std::bind(&NrMacSchedulerOfdmaAG::GetNumRbPerRbg, this));
 }
 
 void NrMacSchedulerOfdmaAG::AssignedDlResources (const UePtrAndBufferReq &ue,
-                                            [[maybe_unused]]const FTResources &assigned,
-                                                  const FTResources &totAssigned) const
-{
-  NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->UpdateDlPFMetric (totAssigned, m_timeWindow, m_dlAmc);
-}
-
-void NrMacSchedulerOfdmaAG::NotAssignedDlResources (const NrMacSchedulerNs3::UePtrAndBufferReq &ue,
-                                               [[maybe_unused]] const NrMacSchedulerNs3::FTResources &assigned,
-                                                   const NrMacSchedulerNs3::FTResources &totAssigned) const
-{
-  NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->UpdateDlPFMetric (totAssigned, m_timeWindow, m_dlAmc);
-}
-
-void NrMacSchedulerOfdmaAG::AssignedUlResources (const UePtrAndBufferReq &ue,
                                             [[maybe_unused]] const FTResources &assigned,
-                                                const FTResources &totAssigned) const
+                                            [[maybe_unused]] const FTResources &totAssigned) const
 {
   NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->UpdateUlPFMetric (totAssigned, m_timeWindow, m_ulAmc);
+  GetFirst GetUe;
+  GetUe (ue)->UpdateDlMetric (m_dlAmc);
 }
 
-void NrMacSchedulerOfdmaAG::NotAssignedUlResources (const NrMacSchedulerNs3::UePtrAndBufferReq &ue,
-                                               [[maybe_unused]] const NrMacSchedulerNs3::FTResources &assigned,
-                                                   const NrMacSchedulerNs3::FTResources &totAssigned) const
+void
+NrMacSchedulerOfdmaAG::AssignedUlResources (const UePtrAndBufferReq &ue,
+                                            [[maybe_unused]] const FTResources &assigned,
+                                            [[maybe_unused]] const FTResources &totAssigned) const
 {
   NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->UpdateUlPFMetric (totAssigned, m_timeWindow, m_ulAmc);
+
+  uint16_t ueRnti = ue.first->m_rnti;
+  uint64_t age = NrMacSchedulerNs3::GetAge(ueRnti);
+  NS_LOG_INFO("UE RNTI: " << ueRnti << "\t Age: " << age << "\t OFDMA에서 받는지 테스트");
+
+  GetFirst GetUe;
+  GetUe (ue)->UpdateUlMetric (m_ulAmc);
 }
 
-void NrMacSchedulerOfdmaAG::BeforeDlSched (const UePtrAndBufferReq &ue,
-                                          const FTResources &assignableInIteration) const
+std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
+                   const NrMacSchedulerNs3::UePtrAndBufferReq &rhs)>
+NrMacSchedulerOfdmaAG::GetUeCompareDlFn () const
 {
   NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->CalculatePotentialTPutDl (assignableInIteration, m_dlAmc);
+  // Sort UEs based on Age (descending order for priority)
+  return NrMacSchedulerUeInfoAG::CompareUeWeightsDl;
 }
 
-void NrMacSchedulerOfdmaAG::BeforeUlSched (const UePtrAndBufferReq &ue,
-                                          const FTResources &assignableInIteration) const
+std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
+                   const NrMacSchedulerNs3::UePtrAndBufferReq &rhs)>
+NrMacSchedulerOfdmaAG::GetUeCompareUlFn () const
 {
-  NS_LOG_FUNCTION (this);
-  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
-  uePtr->CalculatePotentialTPutUl (assignableInIteration, m_ulAmc);
+  // Sort UEs based on Age (descending order for priority)
+  return NrMacSchedulerUeInfoAG::CompareUeWeightsUl;
 }
 
 } // namespace ns3

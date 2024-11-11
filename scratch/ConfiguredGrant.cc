@@ -206,23 +206,23 @@ void MyModel::SendPacketUl ()
   Ptr<Packet> pkt = Create<Packet> (m_packetSize,m_periodicity,m_deadline);
 
   // 패킷에 생성 시간 태그 추가
-  uint64_t creationTime = Simulator::Now().GetMicroSeconds();
+  uint64_t creationTime = Simulator::Now().GetMilliSeconds();
   PacketCreationTimeTag creationTimeTag(creationTime);
   pkt->AddPacketTag(creationTimeTag);
-  std::cout << "\n 패킷 생성 시간:" << creationTime << "µs" << std::endl;
+  //std::cout << "\n 패킷 생성 시간:" << creationTime << "ms" << std::endl;
 
  // 무작위로 긴급한 패킷인지 여부를 결정
   bool isUrgent = (std::rand() % 2 == 0);  // 50% 확률로 true/false 결정
   if (isUrgent)
   {
-    std::cout << "\n Packet is urgent!" << std::endl;
+    //std::cout << "\n Packet is urgent!" << std::endl;
 
     PacketUrgencyTag urgencyTag(true);  // 긴급 태그 클래스가 있을 경우
     pkt->AddPacketTag(urgencyTag);
   }
   else
   {
-    std::cout << "\n Packet is not urgent." << std::endl;
+    //std::cout << "\n Packet is not urgent." << std::endl;
   }
 
   Ipv4Header ipv4Header;
@@ -307,18 +307,18 @@ int main (int argc, char *argv[])
   uint8_t period = uint8_t(10);             // 전송주기 μs
 
   uint16_t gNbNum = 1;                      // 기지국 수
-  uint16_t ueNumPergNb = 14;                // 단말 수
+  uint16_t ueNumPergNb = 10;                // 단말 수
 
   bool enableUl = true;                     // 상향 트래픽 추적
   uint32_t nPackets = 1000;                 // 패킷 총 개수
-  Time sendPacketTime = Seconds(0.2);  // 패킷 전송 시작 전에 대기하는 시간, 패킷 전송 지연 시간
+  Time sendPacketTime = Seconds(0.2);       // 패킷 전송 시작 전에 대기하는 시간, 패킷 전송 지연 시간
   uint8_t sch = 1;                          // 스케줄러 타입 (0: TDMA /1: OFDMA /2: Sym-OFDMA /3: RB-OFDMA)
                                             // Sym-OFDMA : 각 UE에 필요한 최소한의 OFDM 심볼을 할당
                                             // RB-OFDMA : 주어진 주파수 자원을 최대한 많은 UE가 공유
-  uint8_t SchedulerChoice = 0;              // 스케줄러 선택 (0: RR / 1: PF / 2: AG(AgeGreedy))
+  uint8_t SchedulerChoice = 2;              // 스케줄러 선택 (0: RR / 1: PF / 2: AG(AgeGreedy))
 
   std::srand(42);                           // 시드를 현재 시간으로 설정
-  delay = MicroSeconds(10);                  // 트래픽에 적용할 지연 시간(딜레이)을 설정
+  delay = MicroSeconds(10);                 // 트래픽에 적용할 지연 시간(딜레이)을 설정
 
   CommandLine cmd;
   cmd.AddValue ("numerologyBwp1", "The numerology to be used in bandwidth part 1", numerologyBwp1);
@@ -329,7 +329,14 @@ int main (int argc, char *argv[])
   cmd.AddValue ("scheduler", "Scheduler", sch);
   cmd.Parse (argc, argv);
 
+  /*********************************************************< Age가 넘어가는 경로의 gNB, Scheduler NS3 LOG INFO >******************************************************/
+  
   LogComponentEnable("NrGnbMac", LOG_INFO);
+  //LogComponentEnable("NrMacSchedulerNs3", LOG_INFO);
+  //LogComponentEnable("NrMacSchedulerTdma", LOG_INFO);
+  //LogComponentEnable("NrMacSchedulerOfdma", LOG_INFO);
+
+  /*******************************************************************************************************************************************************************/
 
   std::vector<uint32_t> v_init(ueNumPergNb);        // 각 UE가 첫 패킷을 전송하기 전의 초기 지연 시간
   std::vector<uint32_t> v_period(ueNumPergNb);      // 주기적인 전송 간격을 설정하여 각 UE가 상향 링크 패킷을 주기적으로 전송

@@ -449,5 +449,15 @@ NrCGRMessage::GetTrafficDeadline () const
   return m_traffDeadlineTime;
 }
 
+// void NrCGRMessage::SetAge(uint64_t age)
+// {
+//     m_age = age;
+// }
+
+// uint64_t NrCGRMessage::GetAge() const
+// {
+//   return m_age;
+// }
+
 }
 

@@ -318,7 +318,7 @@ int main (int argc, char *argv[])
           std::cout << val << std::endl;
 
   std::cout << "Period values: " << '\n';
-  v_period = std::vector<uint32_t> (ueNumPergNb,{10});
+  v_period = std::vector<uint32_t> (ueNumPergNb,{period});
   for (int val : v_period)
           std::cout << val << "\t";
 

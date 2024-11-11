@@ -78,20 +78,6 @@ private:
   NrGnbMac* m_mac;
 };
 
-// uint64_t
-// NrGnbMac::CalculateAgeForRnti(uint16_t rnti)
-// {
-//   auto it = m_packetCreationTimeMap.find(rnti);
-//   if (it != m_packetCreationTimeMap.end())
-//   {
-//     uint64_t creationTime = it->second;
-//     uint64_t currentTime = Simulator::Now().GetNanoSeconds();
-//     NS_LOG_INFO("gnb에 저장된 AoI 값 =" << currentTime - creationTime);
-//     return currentTime - creationTime;
-//   }
-//   return 0; // 생성된 패킷이 없으면 Age는 0으로 반환
-// }
-
 NrGnbMacMemberEnbCmacSapProvider::NrGnbMacMemberEnbCmacSapProvider (NrGnbMac* mac)
   : m_mac (mac)
 {
@@ -675,8 +661,7 @@ NrGnbMac::DoSlotDlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
   m_macSchedSapProvider->SchedDlTriggerReq (dlParams);
 }
 
-void
-NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
+void NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type) /**************************< 스케줄러에게 전달하는 파라미터들>*****************************/
 {
   NS_LOG_FUNCTION (this);
   /////////////////////////////////////////////////////////NS_LOG_INFO ("Perform things on UL, slot on the air: " << sfnSf);
@@ -684,133 +669,144 @@ NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type)
   // --- UPLINK ---
   // Send UL-CQI info to the scheduler
   for (uint16_t i = 0; i < m_ulCqiReceived.size (); i++)
-    {
-      //m_ulCqiReceived.at (i).m_sfnSf = ((0x3FF & frameNum) << 16) | ((0xFF & subframeNum) << 8) | (0xFF & varTtiNum);
-      m_macSchedSapProvider->SchedUlCqiInfoReq (m_ulCqiReceived.at (i));
-    }
+  {
+    //m_ulCqiReceived.at (i).m_sfnSf = ((0x3FF & frameNum) << 16) | ((0xFF & subframeNum) << 8) | (0xFF & varTtiNum);
+    m_macSchedSapProvider->SchedUlCqiInfoReq (m_ulCqiReceived.at (i));
+  }
   m_ulCqiReceived.clear ();
 
   if (m_cgScheduling)
+  {
+    static bool cgr_configuration = false;
+    static SfnSf m_cgr_configuration = SfnSf (0,0,0,sfnSf.GetNumerology ());
+    static uint8_t posCG = 0;
+
+    uint8_t numberOfSlot_insideOneSubframe = pow(2,(sfnSf.GetNumerology ()));
+
+    // Send CGR info to the scheduler in order to allocate resources:
+    if (!cgr_configuration ||  m_currentSlot < m_cgr_configuration)
     {
-      static bool cgr_configuration = false;
-      static SfnSf m_cgr_configuration = SfnSf (0,0,0,sfnSf.GetNumerology ());
-      static uint8_t posCG = 0;
-
-      uint8_t numberOfSlot_insideOneSubframe = pow(2,(sfnSf.GetNumerology ()));
-
-      // Send CGR info to the scheduler in order to allocate resources:
-      if (!cgr_configuration ||  m_currentSlot < m_cgr_configuration)
-        {
-          for (const auto & v : m_srRntiList)
-            {
-              uint8_t number_slots_for_processing_configurationPeriod = 7;
-              uint8_t number_slots_configuration = (m_configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
-              if(v != 0 )
-                {
-                  if (!cgr_configuration)
-                    {
-                      // We calculate from how many slots on
-                      // the transmissions will be done using only the pre-allocated resources
-                      cgr_configuration = true;
-                      m_cgr_configuration = m_currentSlot;
-                      m_cgr_configuration.Add(number_slots_configuration);
-                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgr_configuration;
-                    }
-                  else
-                    {
-                      posCG ++;
-                      m_cgrNextTxSlot = m_currentSlot;
-                      m_cgrNextTxSlot.Add(number_slots_configuration);
-                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
-                    }
-
-                  // DoReceivePhyPdu에서 계산된 Age 값을 가져옴
-                  auto it = m_packetCreationTimeMap.find(v);
-                  if (it != m_packetCreationTimeMap.end())
-                  {
-                    uint64_t age = it->second;
-
-                    // 긴급 패킷에 따른 Age 가중치
-                    // if (m_packetUrgencyMap[v])
-                    // {
-                    //     age *= 100; // 긴급 패킷이면 Age에 100배 가중치 적용
-                    // }
-
-                    // Age 정보를 스케줄러에 전달
-                    paramsCG_rntiSlot[posCG].m_ageList.push_back(age);
-                    NS_LOG_INFO("UE " << v << "의 Age: " << age);
-                  }
-                  else
-                  {
-                    paramsCG_rntiSlot[posCG].m_ageList.push_back(0); // Age 정보가 없으면 0으로 설정
-                  }
-
-                  paramsCG_rntiSlot[posCG].m_srList.insert (paramsCG_rntiSlot[posCG].m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
-                  paramsCG_rntiSlot[posCG].m_bufCgr.insert (paramsCG_rntiSlot[posCG].m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
-                  paramsCG_rntiSlot[posCG].m_TraffPCgr.insert (paramsCG_rntiSlot[posCG].m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
-                  paramsCG_rntiSlot[posCG].lcid = lcid_configuredGrant;
-                  paramsCG_rntiSlot[posCG].m_TraffInitCgr.insert (paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
-                  paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.insert (paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
-                  countCG_slots = posCG;
-                  break;
-                }
-            }
-        }
-      else
-       {
-          posCG = 0;
-          while (posCG <= countCG_slots)
-            {
-              if (paramsCG_rntiSlot[posCG].m_snfSf == m_currentSlot)
-               {
-                  auto rntiIt = paramsCG_rntiSlot[posCG].m_srList.begin ();
-                  auto bufIt = paramsCG_rntiSlot[posCG].m_bufCgr.begin ();
-                  auto traffPIt = paramsCG_rntiSlot[posCG].m_TraffPCgr.begin ();
-                  auto traffInitIt = paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin ();
-                  auto traffDeadlineIt = paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin ();
-                  while (rntiIt != paramsCG_rntiSlot[posCG].m_srList.end ())
-                   {
-                      m_ccmMacSapUser->UlReceiveCgr (*rntiIt, componentCarrierId_configuredGrant, *bufIt,lcid_configuredGrant,*traffPIt, *traffInitIt, *traffDeadlineIt);
-                      m_cgrNextTxSlot = m_currentSlot;
-                      uint8_t number_slots_configurateGrantPeriod = *traffPIt*numberOfSlot_insideOneSubframe;
-                      m_cgrNextTxSlot.Add(number_slots_configurateGrantPeriod);
-                      paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
-                      rntiIt++;
-                      bufIt++;
-                      traffPIt++;
-                   }
-                 posCG = 0;
-                 break;
-               }
-              posCG ++;
-            }
-       }
-
+      for (const auto & v : m_srRntiList)
       {
-        NrMacSchedSapProvider::SchedUlCgrInfoReqParameters params;
-        params.m_snfSf = m_currentSlot;
-        params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
-        params.m_bufCgr.insert(params.m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
-        params.lcid = lcid_configuredGrant;
-        params.m_TraffPCgr.insert (params.m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
-        params.m_TraffInitCgr.insert (params.m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
-        params.m_TraffDeadlineCgr.insert (params.m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
-        m_srRntiList.clear();
-        m_cgrBufSizeList.clear();
-        m_cgrTraffP.clear();
-        m_cgrTraffDeadline.clear();
-        m_cgrTraffInit.clear();
+        uint8_t number_slots_for_processing_configurationPeriod = 7;
+        uint8_t number_slots_configuration = (m_configurationTime*numberOfSlot_insideOneSubframe)-number_slots_for_processing_configurationPeriod;
+        if(v != 0 )
+        {
+          if (!cgr_configuration)
+          {
+            // We calculate from how many slots on
+            // the transmissions will be done using only the pre-allocated resources
+            cgr_configuration = true;
+            m_cgr_configuration = m_currentSlot;
+            m_cgr_configuration.Add(number_slots_configuration);
+            paramsCG_rntiSlot[posCG].m_snfSf = m_cgr_configuration;
+          }
+          else
+          {
+            posCG ++;
+            m_cgrNextTxSlot = m_currentSlot;
+            m_cgrNextTxSlot.Add(number_slots_configuration);
+            paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
+          }
 
-        m_macSchedSapProvider->SchedUlCgrInfoReq (params);
+          // auto it = m_packetCreationTimeMap.find(v);
+          // if (it != m_packetCreationTimeMap.end())
+          // {
+          //   uint64_t age = it->second;
+
+          //   // Age 정보를 스케줄러에 전달
+          //   paramsCG_rntiSlot[posCG].m_ageList.push_back(age);
+          //   NS_LOG_INFO("UE " << v << "의 Age: " << age << ", \t gNB가 구성 전에 스케줄러에게 전달하는 시점");
+          // }
+          // else
+          // {
+          //   paramsCG_rntiSlot[posCG].m_ageList.push_back(0); // Age 정보가 없으면 0으로 설정
+          //   NS_LOG_INFO("UE Age 정보 없음, \t gNB가 구성 전에 스케줄러에게 전달하는 시점");
+          // }
+
+          paramsCG_rntiSlot[posCG].m_srList.insert (paramsCG_rntiSlot[posCG].m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
+          paramsCG_rntiSlot[posCG].m_bufCgr.insert (paramsCG_rntiSlot[posCG].m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
+          paramsCG_rntiSlot[posCG].m_TraffPCgr.insert (paramsCG_rntiSlot[posCG].m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
+          paramsCG_rntiSlot[posCG].lcid = lcid_configuredGrant;
+          paramsCG_rntiSlot[posCG].m_TraffInitCgr.insert (paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
+          paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.insert (paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
+          countCG_slots = posCG;
+          break;
+        }
+      }
+    }
+    else
+      {
+        posCG = 0;
+        while (posCG <= countCG_slots)
+          {
+            if (paramsCG_rntiSlot[posCG].m_snfSf == m_currentSlot)
+              {
+                auto rntiIt = paramsCG_rntiSlot[posCG].m_srList.begin ();
+                auto bufIt = paramsCG_rntiSlot[posCG].m_bufCgr.begin ();
+                auto traffPIt = paramsCG_rntiSlot[posCG].m_TraffPCgr.begin ();
+                auto traffInitIt = paramsCG_rntiSlot[posCG].m_TraffInitCgr.begin ();
+                auto traffDeadlineIt = paramsCG_rntiSlot[posCG].m_TraffDeadlineCgr.begin ();
+                while (rntiIt != paramsCG_rntiSlot[posCG].m_srList.end ())
+                  {
+                    m_ccmMacSapUser->UlReceiveCgr (*rntiIt, componentCarrierId_configuredGrant, *bufIt,lcid_configuredGrant,*traffPIt, *traffInitIt, *traffDeadlineIt);
+                    m_cgrNextTxSlot = m_currentSlot;
+                    uint8_t number_slots_configurateGrantPeriod = *traffPIt*numberOfSlot_insideOneSubframe;
+                    m_cgrNextTxSlot.Add(number_slots_configurateGrantPeriod);
+                    paramsCG_rntiSlot[posCG].m_snfSf = m_cgrNextTxSlot;
+                    rntiIt++;
+                    bufIt++;
+                    traffPIt++;
+                  }
+                posCG = 0;
+                break;
+              }
+            posCG ++;
+          }
       }
 
-      // We do not have to send UL BSR reports to the scheduler because it uses configured grant,
-      // all the resources are allocated.
-      if (m_ulCeReceived.size () > 0)
+    {
+      NrMacSchedSapProvider::SchedUlCgrInfoReqParameters params;
+      params.m_snfSf = m_currentSlot;
+      params.m_srList.insert (params.m_srList.begin(), m_srRntiList.begin (), m_srRntiList.end ());
+      params.m_bufCgr.insert(params.m_bufCgr.begin(), m_cgrBufSizeList.begin (), m_cgrBufSizeList.end ());
+      params.lcid = lcid_configuredGrant;
+      params.m_TraffPCgr.insert (params.m_TraffPCgr.begin(), m_cgrTraffP.begin (), m_cgrTraffP.end ());
+      params.m_TraffInitCgr.insert (params.m_TraffInitCgr.begin(), m_cgrTraffInit.begin (), m_cgrTraffInit.end ());
+      params.m_TraffDeadlineCgr.insert (params.m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
+      for (const auto & v : m_srRntiList)
+      {
+        auto it = m_packetCreationTimeMap.find(v);
+        if (it != m_packetCreationTimeMap.end())
         {
-          m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
+          uint64_t age = it->second;
+
+          // Age 정보를 스케줄러에 전달
+          params.m_ageList.push_back(age);
+          NS_LOG_INFO("UE " << v << " \tAge: " << age << "\t gNB가 주기적으로 스케줄러에게 전달하는 시점");
         }
+        else
+        {
+          params.m_ageList.push_back(0); // Age 정보가 없으면 0으로 설정
+          NS_LOG_INFO("UE Age 정보 없음, \t gNB가 주기적으로 스케줄러에게 전달하는 시점");
+        }
+      }
+      m_srRntiList.clear();
+      m_cgrBufSizeList.clear();
+      m_cgrTraffP.clear();
+      m_cgrTraffDeadline.clear();
+      m_cgrTraffInit.clear();
+
+      m_macSchedSapProvider->SchedUlCgrInfoReq (params);
     }
+
+    // We do not have to send UL BSR reports to the scheduler because it uses configured grant,
+    // all the resources are allocated.
+    if (m_ulCeReceived.size () > 0)
+    {
+      m_ulCeReceived.erase (m_ulCeReceived.begin (), m_ulCeReceived.end ());
+    }
+  }
   else
     {
       // Send SR info to the scheduler
@@ -948,8 +944,7 @@ NrGnbMac::DoReportSrToScheduler (uint16_t rnti)
   m_srCallback (GetBwpId (), rnti);
 }
 
-void
-NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
+void NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p) /*********************************************< Phy 계층으로부터 패킷 수신 구역 >****************************************/
 {
   NS_LOG_FUNCTION (this);
 
@@ -965,12 +960,11 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
   PacketCreationTimeTag creationTimeTag;
   if (p->RemovePacketTag(creationTimeTag))
   {
-    uint64_t creationTime = creationTimeTag.GetCreationTime();
-    uint64_t receiveTime = Simulator::Now().GetMilliSeconds();
-    uint64_t age = receiveTime - creationTime;
+    uint64_t creationTime = creationTimeTag.GetCreationTime();    // 패킷에서 패킷을 생성한 시간을 저장
+    uint64_t receiveTime = Simulator::Now().GetMilliSeconds();    // 패킷을 gNB가 받은 시간을 저장
+    uint64_t age = receiveTime - creationTime;                    // age는 gNB가 받은 시간에서 패킷 생성 시간의 차로 계산
 
-    // receiveTime 저장
-    m_packetReceiveTimeMap[rnti] = receiveTime;
+    m_packetReceiveTimeMap[rnti] = receiveTime;                   // 각 패킷을 받은 시간을 rnti(UE)에 매핑하여 저장
 
     // 긴급 패킷 여부 확인
     PacketUrgencyTag urgencyTag;
@@ -983,9 +977,9 @@ NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p)
         age *= 100;  // 긴급 패킷인 경우 Age에 100을 곱함
       }
     }
-    NS_LOG_INFO("UE : " << rnti << "\t 긴급도 : " << urgencyTag.GetUrgency() << "\t Age : " << age);
-    // CreationTime과 Age를 RNTI에 매핑하여 저장
-    m_packetCreationTimeMap[rnti] = age;
+    NS_LOG_INFO("UE : " << rnti << "\t 긴급도 : " << urgencyTag.GetUrgency() << "\t Age : " << age << "\t gNB가 수신한 시점");
+
+    m_packetCreationTimeMap[rnti] = age;                          // CreationTime과 Age를 RNTI에 매핑하여 저장
   }
 
   // Try to peek whatever header; in the first byte there will be the LC ID.
@@ -1252,8 +1246,7 @@ NrGnbMac::SendRar (const std::vector <BuildRarListElement_s> &rarList)
 
 }
 
-void
-NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)
+void NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)
 {
   NS_ASSERT (ind.m_sfnSf.GetNumerology () == m_currentSlot.GetNumerology ());
   std::sort (ind.m_slotAllocInfo.m_varTtiAllocInfo.begin (), ind.m_slotAllocInfo.m_varTtiAllocInfo.end ());
@@ -1282,15 +1275,15 @@ NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters i
       uint64_t age = it->second;                 // age 가져오기
       uint64_t receiveTime = receiveTimeIt->second;
 
-      // 현재 시점에서 패킷 생성 시간을 빼서 AoI 계산
+      // 현재 시점에서 패킷 수신 시간을 빼서 AoI 계산
       uint64_t currentTime = Simulator::Now().GetMilliSeconds();
       uint64_t aoi = age + (currentTime - receiveTime); // AoI 계산
 
-      // AoI 값을 로그로 출력
-      NS_LOG_INFO("UE " << rnti << "의 AoI 값 = " << aoi << "(스케줄링 시점)");
-
       // 스케줄러에 Age 값을 전달하여 우선순위 결정에 반영
       varTtiAllocInfo.m_age = aoi;
+
+      // AoI 값을 로그로 출력
+      NS_LOG_INFO("UE " << rnti << " \tAoI 값 = " << varTtiAllocInfo.m_age << " \t 스케줄링된 후 시점");
 
       // 스케줄링된 Age 값을 벡터에 추가
       m_scheduledAgeValues.push_back(aoi);
@@ -1306,8 +1299,7 @@ NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters i
     {
       uint16_t rnti = varTtiAllocInfo.m_dci->m_rnti;
       auto rntiIt = m_rlcAttached.find (rnti);
-      NS_ABORT_MSG_IF(rntiIt == m_rlcAttached.end (),
-                      "Scheduled UE " << rntiIt->first << " not attached");
+      //NS_ABORT_MSG_IF(rntiIt == m_rlcAttached.end (), "Scheduled UE " << rntiIt->first << " not attached");
 
       // Call RLC entities to generate RLC PDUs
       auto dciElem = varTtiAllocInfo.m_dci;

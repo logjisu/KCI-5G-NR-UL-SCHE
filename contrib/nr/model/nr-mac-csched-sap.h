@@ -138,6 +138,7 @@ public:
   struct CschedUeConfigReqParameters
   {
     uint16_t  m_rnti;
+    // uint64_t m_ageList;
     BeamConfId   m_beamConfId; //!< Beam Id
     bool      m_reconfigureFlag;
     bool      m_drxConfigPresent;
