@@ -60,11 +60,6 @@ NrMacSchedulerOfdmaAG::AssignedUlResources (const UePtrAndBufferReq &ue,
                                             [[maybe_unused]] const FTResources &totAssigned) const
 {
   NS_LOG_FUNCTION (this);
-
-  uint16_t ueRnti = ue.first->m_rnti;
-  uint64_t age = NrMacSchedulerNs3::GetAge(ueRnti);
-  NS_LOG_INFO("UE RNTI: " << ueRnti << "\t Age: " << age << "\t OFDMA에서 받는지 테스트");
-
   GetFirst GetUe;
   GetUe (ue)->UpdateUlMetric (m_ulAmc);
 }
@@ -82,8 +77,17 @@ std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
                    const NrMacSchedulerNs3::UePtrAndBufferReq &rhs)>
 NrMacSchedulerOfdmaAG::GetUeCompareUlFn () const
 {
-  // Sort UEs based on Age (descending order for priority)
-  return NrMacSchedulerUeInfoAG::CompareUeWeightsUl;
+  return [this](const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
+                const NrMacSchedulerNs3::UePtrAndBufferReq &rhs) {
+    uint16_t lueRnti = lhs.first->m_rnti;
+    uint16_t rueRnti = rhs.first->m_rnti;
+
+    uint64_t left_age = NrMacSchedulerNs3::GetAge(lueRnti);
+    uint64_t right_age = NrMacSchedulerNs3::GetAge(rueRnti);
+
+    NS_LOG_INFO("비교 1(좌) UE: " << lueRnti << "\t Age: " << left_age << "\t | \t비교 2(우) UE: " << rueRnti << "\t Age: " << right_age);
+    return left_age > right_age;
+  };
 }
 
 } // namespace ns3

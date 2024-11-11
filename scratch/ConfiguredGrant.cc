@@ -450,8 +450,8 @@ int main (int argc, char *argv[])
   nrHelper->SetSchedulerAttribute ("DlDataSymbolsFpattern", UintegerValue (0)); //symStart - 1
 
   // HARQ 재전송 활성화 또는 비활성화
-  nrHelper->SetSchedulerAttribute ("EnableHarqReTx", BooleanValue (true));   // 기본 값 false
-  Config::SetDefault ("ns3::NrHelper::HarqEnabled", BooleanValue (true));  // 기본 값 false 
+  nrHelper->SetSchedulerAttribute ("EnableHarqReTx", BooleanValue (false));   // 기본 값 false
+  Config::SetDefault ("ns3::NrHelper::HarqEnabled", BooleanValue (false));  // 기본 값 false 
 
   // 스케줄러 선택
   if (sch != 0) 
@@ -470,7 +470,7 @@ int main (int argc, char *argv[])
       break;
     case 2: // Age Greedy (AG)
         nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaAG::GetTypeId ());
-        LogComponentEnable("NrMacSchedulerOfdmaAG", LOG_INFO);
+        //LogComponentEnable("NrMacSchedulerOfdmaAG", LOG_INFO);
         std::cout << "\n스케줄러 종류 : Age Greedy (AG)\n" << std::endl;
       break;
     

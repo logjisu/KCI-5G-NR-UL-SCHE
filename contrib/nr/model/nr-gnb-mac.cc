@@ -974,7 +974,7 @@ void NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p) /********************************
       m_packetUrgencyMap[rnti] = isUrgent;  // 긴급도를 m_packetUrgencyMap에 저장
       if (urgencyTag.GetUrgency())
       {
-        age *= 100;  // 긴급 패킷인 경우 Age에 100을 곱함
+        age *= 10;  // 긴급 패킷인 경우 Age에 100을 곱함
       }
     }
     NS_LOG_INFO("UE : " << rnti << "\t 긴급도 : " << urgencyTag.GetUrgency() << "\t Age : " << age << "\t gNB가 수신한 시점");

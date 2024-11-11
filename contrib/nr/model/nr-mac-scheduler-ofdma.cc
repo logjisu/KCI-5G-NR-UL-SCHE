@@ -684,7 +684,7 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
           while (resources > 0)
             {
               GetFirst GetUe;
-              //std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
+              std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
               auto schedInfoIt = ueVector.begin ();
 
               // Ensure fairness: pass over UEs which already has enough resources to transmit

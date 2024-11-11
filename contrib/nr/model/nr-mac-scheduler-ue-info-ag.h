@@ -48,7 +48,6 @@ public:
     // Age가 큰 UE를 더 높은 우선순위로 설정
     return luePtr->m_age > ruePtr->m_age;
   }
-
   uint64_t m_age {0};
 };
 
