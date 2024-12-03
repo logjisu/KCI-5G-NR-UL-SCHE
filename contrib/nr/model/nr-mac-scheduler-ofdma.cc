@@ -641,7 +641,7 @@ NrMacSchedulerOfdma::GetTpc () const
 // Configured Grant - New schedulers (Sym-OFDMA and RB-OFDMA)
 
 NrMacSchedulerNs3::BeamSymbolMap
-NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const
+NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl) const/*********************************************<UL RBG를 할당하는 부분>*************************************/
 {
   NS_LOG_FUNCTION (this);
 
@@ -680,25 +680,32 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
             {
               BeforeUlSched (ue, FTResources (rbgAssignable * beamSym, beamSym));
             }
-
+          NS_LOG_INFO("UE 정렬 전: ");
+          for (const auto& ue : ueVector) {
+              uint16_t rnti = ue.first->m_rnti;
+              uint64_t age = NrMacSchedulerNs3::GetAge(rnti);
+              NS_LOG_INFO("UE: " << rnti << ", Age: " << age);
+          }
           while (resources > 0)
             {
               GetFirst GetUe;
+              
               std::sort (ueVector.begin (), ueVector.end (), GetUeCompareUlFn ()); //Comment out this line to assign the packets in order
+              
               auto schedInfoIt = ueVector.begin ();
-
+              // NS_LOG_INFO(" KBS: " << GetUe (*schedInfoIt)->m_rnti);
               // Ensure fairness: pass over UEs which already has enough resources to transmit
               while (schedInfoIt != ueVector.end ())
                 {
                   uint32_t bufQueueSize = schedInfoIt->second;
                   if (GetUe (*schedInfoIt)->m_ulTbSize >= std::max (bufQueueSize, 7U))
-                    {
-                      schedInfoIt++;
-                    }
+                  {
+                    schedInfoIt++;
+                  }
                   else
-                    {
-                      break;
-                    }
+                  {
+                    break;
+                  }
                 }
 
               // In the case that all the UE already have their requirements fullfilled,
@@ -734,6 +741,12 @@ NrMacSchedulerOfdma::AssignULRBG (uint32_t symAvail, const ActiveUeMap &activeUl
                                               assigned);
                     }
                 }
+            }
+            NS_LOG_INFO("UE 정렬 후: ");
+            for (const auto& ue : ueVector) {
+                uint16_t rnti = ue.first->m_rnti;
+                uint64_t age = NrMacSchedulerNs3::GetAge(rnti);
+                NS_LOG_INFO("UE: " << rnti << ", Age: " << age);
             }
         }
   }
@@ -1387,7 +1400,7 @@ NrMacSchedulerOfdma::CreateUlDci (PointInFTPlane *spoint,
 std::shared_ptr<DciInfoElementTdma>
 NrMacSchedulerOfdma::CreateUlCGConfig (PointInFTPlane *spoint,
                                       const std::shared_ptr<NrMacSchedulerUeInfo> &ueInfo,
-                                      uint32_t maxSym) const
+                                      uint32_t maxSym) const/************************************************************<ConfiguredGrant에서 RBG 할당하는 구역>***************************************************/
 {
   NS_LOG_FUNCTION (this);
 

@@ -18,7 +18,7 @@
  */
 #pragma once
 
-#include "nr-mac-scheduler-ns3.h"
+#include "nr-mac-scheduler-ue-info-rr.h"
 
 namespace ns3 {
 
@@ -26,18 +26,57 @@ class NrMacSchedulerUeInfoAG : public NrMacSchedulerUeInfo
 {
 public:
   NrMacSchedulerUeInfoAG (uint16_t rnti, BeamConfId beamConfId, const GetRbPerRbgFn &fn)
-   : NrMacSchedulerUeInfo (rnti, beamConfId, fn)
+   : NrMacSchedulerUeInfo (rnti, beamConfId, fn), m_age (0)
   {
   }
+
+  virtual void ResetDlSchedInfo () override
+  {
+    NrMacSchedulerUeInfo::ResetDlSchedInfo ();
+  }
+
+  virtual void ResetDlMetric () override
+  {
+     NrMacSchedulerUeInfo::ResetDlMetric ();
+  }
+
+  virtual void ResetUlSchedInfo () override
+  {
+    NrMacSchedulerUeInfo::ResetUlSchedInfo ();
+  }
+
+  virtual void ResetUlMetric () override
+  {
+    NrMacSchedulerUeInfo::ResetUlMetric ();
+  }
+
+  void UpdateAge(uint16_t age)
+  {
+    m_age = age;
+  }
+
+  void UpdateDlAGMetric (const NrMacSchedulerNs3::FTResources &totAssigned,
+                         const Ptr<const NrAmc> &amc);
+
+  void UpdateUlAGMetric (const NrMacSchedulerNs3::FTResources &totAssigned,
+                         const Ptr<const NrAmc> &amc);
+
+  void CalculatePotentialTPutDl (const NrMacSchedulerNs3::FTResources &assignableInIteration,
+                                 const Ptr<const NrAmc> &amc);
+
+  void CalculatePotentialTPutUl (const NrMacSchedulerNs3::FTResources &assignableInIteration,
+                               const Ptr<const NrAmc> &amc);
 
   static bool CompareUeWeightsDl (const NrMacSchedulerNs3::UePtrAndBufferReq &lue,
                                   const NrMacSchedulerNs3::UePtrAndBufferReq & rue)
   {
     auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(lue.first.get());
     auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(rue.first.get());
+    
+    double lPfMetric = luePtr->m_age;
+    double rPfMetric = ruePtr->m_age;
 
-    // Age가 큰 UE를 더 높은 우선순위로 설정
-    return luePtr->m_age > ruePtr->m_age;
+    return lPfMetric > rPfMetric;
   }
 
   static bool CompareUeWeightsUl (const NrMacSchedulerNs3::UePtrAndBufferReq &lue,
@@ -45,9 +84,19 @@ public:
   {
     auto luePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(lue.first.get());
     auto ruePtr = dynamic_cast<NrMacSchedulerUeInfoAG*>(rue.first.get());
-    // Age가 큰 UE를 더 높은 우선순위로 설정
-    return luePtr->m_age > ruePtr->m_age;
+
+    double lPfMetric = luePtr->m_age;
+    double rPfMetric = ruePtr->m_age;
+
+    return lPfMetric > rPfMetric;
   }
+
+  double m_potentialTputDl {0.0};
+  double m_avgTputDl  {0.0};
+
+  double m_potentialTputUl {0.0};
+  double m_avgTputUl  {0.0};
+
   uint64_t m_age {0};
 };
 

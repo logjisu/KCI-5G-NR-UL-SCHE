@@ -44,6 +44,7 @@
 #include "bwp-manager-gnb.h"
 #include "a-packet-tags.h"
 #include <numeric>  // std::accumulate를 사용하기 위해 필요
+#include <queue>
 
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("NrGnbMac");
@@ -58,6 +59,8 @@ std::unordered_map<uint16_t, uint64_t> m_packetCreationTimeMap; // 패킷 생성
 std::vector<uint64_t> m_scheduledAgeValues;                     // 스케줄링된 Age 값을 저장하는 벡터
 std::unordered_map<uint16_t, uint64_t> m_packetReceiveTimeMap;  // receiveTime 저장용 맵 추가
 std::unordered_map<uint16_t, bool> m_packetUrgencyMap;          // RNTI별 패킷 긴급도 저장
+std::unordered_map<uint16_t, std::queue<std::pair<uint64_t, uint64_t>>> m_ueDataQueues;
+std::map<uint16_t, uint64_t> rntiToTotalBytes;  // RNTI 별 총 패킷 크기를 저장하는 맵
 
 class NrGnbMacMemberEnbCmacSapProvider : public LteEnbCmacSapProvider
 {
@@ -776,10 +779,13 @@ void NrGnbMac::DoSlotUlIndication (const SfnSf &sfnSf, LteNrTddSlotType type) /*
       params.m_TraffDeadlineCgr.insert (params.m_TraffDeadlineCgr.begin(), m_cgrTraffDeadline.begin (), m_cgrTraffDeadline.end ());
       for (const auto & v : m_srRntiList)
       {
-        auto it = m_packetCreationTimeMap.find(v);
-        if (it != m_packetCreationTimeMap.end())
+        auto& ageQueue = m_ueDataQueues[v];
+
+        if (!ageQueue.empty())
+        // auto it = m_packetCreationTimeMap.find(v);
+        // if (it != m_packetCreationTimeMap.end())
         {
-          uint64_t age = it->second;
+          auto [받은시간, age] = ageQueue.front();
 
           // Age 정보를 스케줄러에 전달
           params.m_ageList.push_back(age);
@@ -970,16 +976,18 @@ void NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p) /********************************
     PacketUrgencyTag urgencyTag;
     if (p->RemovePacketTag(urgencyTag))
     {
-      bool isUrgent = urgencyTag.GetUrgency();
-      m_packetUrgencyMap[rnti] = isUrgent;  // 긴급도를 m_packetUrgencyMap에 저장
-      if (urgencyTag.GetUrgency())
+      uint32_t Urgent = urgencyTag.GetUrgency();
+      m_packetUrgencyMap[rnti] = Urgent;                          // 긴급도를 m_packetUrgencyMap에 저장
+      if (urgencyTag.GetUrgency()!=1)
       {
-        age *= 10;  // 긴급 패킷인 경우 Age에 100을 곱함
+        age *=(Urgent*10);  // 긴급 패킷인 경우 Age에 n을 곱함
       }
+      NS_LOG_INFO("UE : " << rnti << "\t 긴급도 : " << Urgent << "\t Age : " << age << "\t gNB가 수신한 시점");
     }
-    NS_LOG_INFO("UE : " << rnti << "\t 긴급도 : " << urgencyTag.GetUrgency() << "\t Age : " << age << "\t gNB가 수신한 시점");
-
-    m_packetCreationTimeMap[rnti] = age;                          // CreationTime과 Age를 RNTI에 매핑하여 저장
+    
+    auto &ageQueue = m_ueDataQueues[rnti]; // UE의 큐 참조
+    ageQueue.push(std::make_pair(receiveTime, age));
+    //m_packetCreationTimeMap[rnti] = age;                          // CreationTime과 Age를 RNTI에 매핑하여 저장
   }
 
   // Try to peek whatever header; in the first byte there will be the LC ID.
@@ -1011,8 +1019,12 @@ void NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p) /********************************
 
   NrMacHeaderVs macHeader;
   p->RemoveHeader (macHeader);
-
+  p->GetSize();
   auto lcidIt = rntiIt->second.find (macHeader.GetLcId ());
+
+  // 처리량 계산
+  uint64_t bytes = p->GetSize (); // 패킷 바이트 크기
+  rntiToTotalBytes[rnti] += bytes;
 
   LteMacSapUser::ReceivePduParameters rxParams;
   rxParams.p = p;
@@ -1022,6 +1034,18 @@ void NrGnbMac::DoReceivePhyPdu (Ptr<Packet> p) /********************************
   if (rxParams.p->GetSize ())
     {
       (*lcidIt).second->ReceivePdu (rxParams);
+    }
+}
+
+void
+NrGnbMac::PrintAverageThroughput ()
+{
+  std::cout << "Average Throughput per RNTI:" << std::endl;
+
+  for (const auto &[rnti, totalBytes] : rntiToTotalBytes)
+    {
+      double throughput = (totalBytes * 8.0) / 10.0; // bps
+      std::cout << "RNTI: " << rnti << ", Throughput: " << throughput / 1e6 << " Mbps" << std::endl;
     }
 }
 
@@ -1246,7 +1270,7 @@ NrGnbMac::SendRar (const std::vector <BuildRarListElement_s> &rarList)
 
 }
 
-void NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)
+void NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParameters ind)/*****************<스케줄링 된 정보를 받아오는 곳>******************************/
 {
   NS_ASSERT (ind.m_sfnSf.GetNumerology () == m_currentSlot.GetNumerology ());
   std::sort (ind.m_slotAllocInfo.m_varTtiAllocInfo.begin (), ind.m_slotAllocInfo.m_varTtiAllocInfo.end ());
@@ -1257,6 +1281,14 @@ void NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParamet
 
   SendRar (ind.m_buildRarList);
 
+  // 스케줄링된 UE 순서 확인
+  // if(!ind.m_slotAllocInfo.m_varTtiAllocInfo.empty() && ind.m_slotAllocInfo.m_varTtiAllocInfo.front().m_dci->m_rnti != 0){
+  //   NS_LOG_INFO("gNB에서 확인하는 스케줄링된 UE 처리 순서:");
+  //   for (const auto& varTtiAllocInfo : ind.m_slotAllocInfo.m_varTtiAllocInfo)
+  //   {
+  //     NS_LOG_INFO("UE: " << varTtiAllocInfo.m_dci->m_rnti);
+  //   }
+  // }
   // Age 값 수집을 위해 벡터 초기화
   m_scheduledAgeValues.clear();
 
@@ -1266,26 +1298,29 @@ void NrGnbMac::DoSchedConfigIndication (NrMacSchedSapUser::SchedConfigIndParamet
     
     uint16_t rnti = varTtiAllocInfo.m_dci->m_rnti;
 
-    auto receiveTimeIt = m_packetReceiveTimeMap.find(rnti);
-
+    //auto receiveTimeIt = m_packetReceiveTimeMap.find(rnti);
+    auto& ageQueue = m_ueDataQueues[rnti];
     // m_packetCreationTimeMap에서 RNTI에 해당하는 Age 값 가져오기
-    auto it = m_packetCreationTimeMap.find(rnti);
-    if (it != m_packetCreationTimeMap.end())
+    //auto it = m_packetCreationTimeMap.find(rnti);
+    //if (it != m_packetCreationTimeMap.end())
+    if (!ageQueue.empty())
     {
-      uint64_t age = it->second;                 // age 가져오기
-      uint64_t receiveTime = receiveTimeIt->second;
+      auto [받은시간, age] = ageQueue.front();
+      //uint64_t age = it->second;                 // age 가져오기
+      //uint64_t 받은시간 = receiveTimeIt->second;
 
       // 현재 시점에서 패킷 수신 시간을 빼서 AoI 계산
-      uint64_t currentTime = Simulator::Now().GetMilliSeconds();
-      uint64_t aoi = age + (currentTime - receiveTime); // AoI 계산
+      uint64_t 현재시간 = Simulator::Now().GetMilliSeconds();
+      uint64_t 스케줄링시간 = 현재시간 - 받은시간;
+      uint64_t aoi = age + 스케줄링시간; // AoI 계산
 
       // 스케줄러에 Age 값을 전달하여 우선순위 결정에 반영
       varTtiAllocInfo.m_age = aoi;
 
       // AoI 값을 로그로 출력
       NS_LOG_INFO("UE " << rnti << " \tAoI 값 = " << varTtiAllocInfo.m_age << " \t 스케줄링된 후 시점");
-
-      // 스케줄링된 Age 값을 벡터에 추가
+      ageQueue.pop(); // 처리 완료 후 제거
+      // 스케줄링된 Aoi 값을 벡터에 추가
       m_scheduledAgeValues.push_back(aoi);
     }
     else

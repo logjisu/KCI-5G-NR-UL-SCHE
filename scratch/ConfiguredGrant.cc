@@ -209,21 +209,12 @@ void MyModel::SendPacketUl ()
   uint64_t creationTime = Simulator::Now().GetMilliSeconds();
   PacketCreationTimeTag creationTimeTag(creationTime);
   pkt->AddPacketTag(creationTimeTag);
-  //std::cout << "\n 패킷 생성 시간:" << creationTime << "ms" << std::endl;
+  std::cout << "\n 패킷 생성 시간:" << creationTime << "ms" << std::endl;
 
- // 무작위로 긴급한 패킷인지 여부를 결정
-  bool isUrgent = (std::rand() % 2 == 0);  // 50% 확률로 true/false 결정
-  if (isUrgent)
-  {
-    //std::cout << "\n Packet is urgent!" << std::endl;
-
-    PacketUrgencyTag urgencyTag(true);  // 긴급 태그 클래스가 있을 경우
-    pkt->AddPacketTag(urgencyTag);
-  }
-  else
-  {
-    //std::cout << "\n Packet is not urgent." << std::endl;
-  }
+  // 무작위로 긴급한 패킷인지 여부를 결정
+  uint32_t Urgent = (std::rand() % 8 + 1);  // 긴급도를 1 ~ 8로 결정
+  PacketUrgencyTag urgencyTag(Urgent);
+  pkt->AddPacketTag(urgencyTag);
 
   Ipv4Header ipv4Header;
   ipv4Header.SetProtocol(Ipv4L3Protocol::PROT_NUMBER);
@@ -257,7 +248,7 @@ void MyModel::ScheduleTxUl (uint8_t period)
 
 void MyModel::ScheduleTxUl_Configuration (void)
 {
-  uint8_t configurationTime = 60;
+  uint8_t configurationTime = 10;
   Time tNext = MilliSeconds(configurationTime);
   m_sendEvent = Simulator::Schedule (tNext, &MyModel::SendPacketUl, this);
 }
@@ -301,13 +292,13 @@ void ConnectUlPdcpRlcTraces ()
 int main (int argc, char *argv[])
 {
   uint16_t numerologyBwp1 = 1;              // 대역폭 부분에서 사용할 서브캐리어 간격을 설정
-  uint32_t packetSize = 10;                 // 패킷 크기 Byte
+  //uint32_t packetSize = 100;                 // 패킷 크기 Byte
   double centralFrequencyBand1 = 3550e6;    // 주파수 3550 MHz
   double bandwidthBand1 = 20e6;             // 대역폭 20 MHz
-  uint8_t period = uint8_t(10);             // 전송주기 μs
-
+  uint8_t period = uint8_t(10);             // 전송주기 ms
+  
   uint16_t gNbNum = 1;                      // 기지국 수
-  uint16_t ueNumPergNb = 10;                // 단말 수
+  uint16_t ueNumPergNb = 37;                // 단말 수
 
   bool enableUl = true;                     // 상향 트래픽 추적
   uint32_t nPackets = 1000;                 // 패킷 총 개수
@@ -317,14 +308,14 @@ int main (int argc, char *argv[])
                                             // RB-OFDMA : 주어진 주파수 자원을 최대한 많은 UE가 공유
   uint8_t SchedulerChoice = 2;              // 스케줄러 선택 (0: RR / 1: PF / 2: AG(AgeGreedy))
 
-  std::srand(42);                           // 시드를 현재 시간으로 설정
+  std::srand(42);                         // 시드를 현재 시간으로 설정 42(*), 537(V), 1858(V), 3022(V), 3108(V), 4472(V), 4485(V), 5854(V), 8623(V), 9391(V)
   delay = MicroSeconds(10);                 // 트래픽에 적용할 지연 시간(딜레이)을 설정
 
   CommandLine cmd;
   cmd.AddValue ("numerologyBwp1", "The numerology to be used in bandwidth part 1", numerologyBwp1);
   cmd.AddValue ("centralFrequencyBand1", "The system frequency to be used in band 1", centralFrequencyBand1);
   cmd.AddValue ("bandwidthBand1", "The system bandwidth to be used in band 1", bandwidthBand1);
-  cmd.AddValue ("packetSize", "packet size in bytes", packetSize);
+  //cmd.AddValue ("packetSize", "packet size in bytes", packetSize);
   cmd.AddValue ("enableUl", "Enable Uplink", enableUl);
   cmd.AddValue ("scheduler", "Scheduler", sch);
   cmd.Parse (argc, argv);
@@ -334,7 +325,7 @@ int main (int argc, char *argv[])
   LogComponentEnable("NrGnbMac", LOG_INFO);
   //LogComponentEnable("NrMacSchedulerNs3", LOG_INFO);
   //LogComponentEnable("NrMacSchedulerTdma", LOG_INFO);
-  //LogComponentEnable("NrMacSchedulerOfdma", LOG_INFO);
+  LogComponentEnable("NrMacSchedulerOfdma", LOG_INFO);
 
   /*******************************************************************************************************************************************************************/
 
@@ -343,22 +334,28 @@ int main (int argc, char *argv[])
   std::vector<uint32_t> v_deadline(ueNumPergNb);    // 각 패킷이 전송되어야 하는 마감 시간을 설정하여 패킷이 전송되는 데 필요한 최대 시간
   std::vector<uint32_t> v_packet(ueNumPergNb);      // 각 패킷의 크기를 바이트 단위로 설정
 
-  // std::cout << "\n Init values: " << '\n';
+  //std::cout << "\n Init values: " << '\n';
   v_init = std::vector<uint32_t> (ueNumPergNb,{100});           // μs
   // for (int val : v_init)
   //         std::cout << val << std::endl;
 
-  // std::cout << "Deadline values: " << '\n';
+  //std::cout << "Deadline values: " << '\n';
   v_deadline = std::vector<uint32_t> (ueNumPergNb,{10000000});  // μs
   // for (int val : v_deadline)
-  //         std::cout << val << std::endl;
+  //          std::cout << val << std::endl;
 
-  // std::cout << "Packet values: " << '\n';
-  v_packet = std::vector<uint32_t> (ueNumPergNb,{packetSize});
+  std::cout << "Packet values: " << '\n';
+  for (uint8_t i = 0; i < ueNumPergNb; ++i)
+  {
+    uint32_t randomPacketSize = 10 + (std::rand() % 291);  // 10 ~ 300 바이트 사이의 랜덤 크기
+    v_packet[i] = randomPacketSize;
+    std::cout << "UE " << uint32_t(i) << ": Packet Size = " << randomPacketSize << " bytes" << std::endl;
+  }
+  // v_packet = std::vector<uint32_t> (ueNumPergNb,{packetSize});
   // for (int val : v_packet)
-  //         std::cout << val << std::endl;
+          // std::cout << val << std::endl;
 
-  // std::cout << "Period values: " << '\n';
+  //std::cout << "Period values: " << '\n';
   v_period = std::vector<uint32_t> (ueNumPergNb,{period});
   // for (int val : v_period)
   //         std::cout << val << "\t";
@@ -470,7 +467,7 @@ int main (int argc, char *argv[])
       break;
     case 2: // Age Greedy (AG)
         nrHelper->SetSchedulerTypeId (NrMacSchedulerOfdmaAG::GetTypeId ());
-        //LogComponentEnable("NrMacSchedulerOfdmaAG", LOG_INFO);
+        LogComponentEnable("NrMacSchedulerOfdmaAG", LOG_INFO);
         std::cout << "\n스케줄러 종류 : Age Greedy (AG)\n" << std::endl;
       break;
     
@@ -597,7 +594,12 @@ int main (int argc, char *argv[])
   nrHelper->EnableTraces();
   Simulator::Schedule (Seconds (0.16), &ConnectUlPdcpRlcTraces);
 
-  Simulator::Stop (Seconds (10));
+  Simulator::Stop (Seconds (10.0));
+   // gNB의 MAC 객체에 대한 포인터를 얻습니다.
+  Ptr<NrGnbMac> gnbMac =
+      DynamicCast<NrGnbMac> (enbNetDev.Get (0)->GetObject<NrGnbNetDevice> ()->GetMac (0));
+  Simulator::Schedule (Seconds (10.0) - NanoSeconds (2), &NrGnbMac::PrintAverageThroughput, gnbMac);
+  
   Simulator::Run ();
 
   std::cout<<"\n FIN. "<<std::endl;

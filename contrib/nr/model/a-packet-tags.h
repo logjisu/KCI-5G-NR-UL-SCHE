@@ -59,10 +59,10 @@ class PacketUrgencyTag : public Tag
 {
 public:
   PacketUrgencyTag();
-  PacketUrgencyTag(bool isUrgent);
+  PacketUrgencyTag(uint32_t Urgency);
 
-  void SetUrgency(bool isUrgent);
-  bool GetUrgency() const;
+  void SetUrgency(uint32_t Urgency);
+  uint32_t GetUrgency() const;
 
   void Serialize(TagBuffer i) const override;
   void Deserialize(TagBuffer i) override;
@@ -73,7 +73,7 @@ public:
   TypeId GetInstanceTypeId() const override;
 
 private:
-  bool m_isUrgent;
+  uint32_t m_Urgency;
 };
 
 #endif // PACKET_TAGS_H

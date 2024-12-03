@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <ns3/double.h>
 #include <ns3/log.h>
-#include "a-packet-tags.h"
 
 namespace ns3 {
 

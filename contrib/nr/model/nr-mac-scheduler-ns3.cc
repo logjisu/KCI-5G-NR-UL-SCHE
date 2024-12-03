@@ -39,12 +39,15 @@
 #include <ns3/integer.h>
 #include <unordered_set>
 
+#include <queue>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("NrMacSchedulerNs3");
 NS_OBJECT_ENSURE_REGISTERED (NrMacSchedulerNs3);
 
 std::map<uint16_t, uint64_t> UeAgeMap;
+//std::map<uint16_t, std::queue<uint64_t>> m_ueAgeMap;
 
 NrMacSchedulerNs3::NrMacSchedulerNs3 () : NrMacScheduler ()
 {
@@ -2664,8 +2667,9 @@ NrMacSchedulerNs3::DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrI
       // 각 UE에 해당하는 Age 값 저장
       if (i < params.m_ageList.size()) // ageList와 크기 일치 여부 확인
       {
-        UeAgeMap[ue] = params.m_ageList[i] + 1;
-        NS_LOG_INFO("UE " << ue << "의 Age 값: " << UeAgeMap[ue] << "\tNS3 기본 스케줄러");
+        SetAge(ue, params.m_ageList[i]);
+        // UeAgeMap[ue] = params.m_ageList[i];
+        //NS_LOG_INFO("UE " << ue << "의 Age 값: " << UeAgeMap[ue] << "\tNS3 기본 스케줄러");
       }
       
       // auto it = std::find (m_srList.begin(), m_srList.end(), ue);
@@ -2691,6 +2695,9 @@ NrMacSchedulerNs3::DoSchedUlCgrInfoReq (const NrMacSchedSapProvider::SchedUlCgrI
 void NrMacSchedulerNs3::SetAge(uint16_t ueRnti, uint64_t age)
 {
   UeAgeMap[ueRnti] = age; // 특정 UE에 대한 Age 값 설정
+  // auto &ageQueue = m_ueAgeMap[ueRnti]; // UE의 큐 참조
+  // ageQueue.push(age);
+  //NS_LOG_INFO("UE :" << ueRnti << "WCAN : " << age << "기본 스케줄러 SetAge 실행");
 }
 
 uint64_t NrMacSchedulerNs3::GetAge(uint16_t ueRnti) const
@@ -2701,6 +2708,16 @@ uint64_t NrMacSchedulerNs3::GetAge(uint16_t ueRnti) const
     return it->second; // 특정 UE의 Age 값 반환
   }
   return 0; // UE가 없을 경우 기본값 반환
+  // auto it = m_ueAgeMap.find(ueRnti);
+  // if (it != m_ueAgeMap.end() && !it->second.empty()) {
+  //   uint64_t age = it->second.front(); // 큐의 첫 번째 값 가져오기
+  //   if(age!=it->second.back()){
+  //     it->second.pop(); // 첫 번째 값 제거
+  //   }
+  //   NS_LOG_INFO("UE :" << ueRnti << ", WCAN : " << age << "기본 스케줄러 GetAge 실행");
+  //   return age; // 값을 반환
+  // }
+  // return 0; // 해당 UE가 없거나 큐가 비어있으면 0 반환
 }
 
 bool

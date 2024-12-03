@@ -170,6 +170,7 @@ public:
 
   void SetEnbCmacSapUser (LteEnbCmacSapUser* s);
 
+  void PrintAverageThroughput ();
 
 
   /**

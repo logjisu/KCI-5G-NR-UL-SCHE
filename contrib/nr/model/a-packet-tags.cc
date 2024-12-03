@@ -97,37 +97,37 @@ TypeId PacketUeIdTag::GetInstanceTypeId() const
 }
 
 // PacketUrgencyTag 구현
-PacketUrgencyTag::PacketUrgencyTag() : m_isUrgent(false) {}
-PacketUrgencyTag::PacketUrgencyTag(bool isUrgent) : m_isUrgent(isUrgent) {}
+PacketUrgencyTag::PacketUrgencyTag() : m_Urgency(0) {}
+PacketUrgencyTag::PacketUrgencyTag(uint32_t Urgency) : m_Urgency(Urgency) {}
 
-void PacketUrgencyTag::SetUrgency(bool isUrgent)
+void PacketUrgencyTag::SetUrgency(uint32_t Urgency)
 {
-  m_isUrgent = isUrgent;
+  m_Urgency = Urgency;
 }
 
-bool PacketUrgencyTag::GetUrgency() const
+uint32_t PacketUrgencyTag::GetUrgency() const
 {
-  return m_isUrgent;
+  return m_Urgency;
 }
 
 void PacketUrgencyTag::Serialize(TagBuffer i) const
 {
-  i.WriteU8(m_isUrgent ? 1 : 0);
+  i.WriteU32(m_Urgency);
 }
 
 void PacketUrgencyTag::Deserialize(TagBuffer i)
 {
-  m_isUrgent = i.ReadU8() == 1;
+  m_Urgency = i.ReadU32();
 }
 
 uint32_t PacketUrgencyTag::GetSerializedSize() const
 {
-  return sizeof(uint8_t);
+  return sizeof(uint32_t);
 }
 
 void PacketUrgencyTag::Print(std::ostream &os) const
 {
-  os << "Urgency=" << (m_isUrgent ? "true" : "false");
+  os << "Urgency=" << m_Urgency;
 }
 
 TypeId PacketUrgencyTag::GetTypeId()

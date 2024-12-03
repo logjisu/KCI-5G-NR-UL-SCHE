@@ -18,50 +18,33 @@
  */
 #include "nr-mac-scheduler-ofdma-ag.h"
 #include "nr-mac-scheduler-ue-info-ag.h"
+#include <algorithm>
+#include <ns3/double.h>
 #include <ns3/log.h>
-
 
 namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("NrMacSchedulerOfdmaAG");
-
+NS_OBJECT_ENSURE_REGISTERED (NrMacSchedulerOfdmaAG);
 
 TypeId NrMacSchedulerOfdmaAG::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::NrMacSchedulerOfdmaAG")
-    .SetParent<NrMacSchedulerOfdma> ()
-    .AddConstructor<NrMacSchedulerOfdmaAG> ();
+    .SetParent<NrMacSchedulerOfdmaRR> ()
+    .AddConstructor<NrMacSchedulerOfdmaAG> ()
+  ;
   return tid;
 }
 
-NrMacSchedulerOfdmaAG::NrMacSchedulerOfdmaAG () : NrMacSchedulerOfdma (){
-  
+NrMacSchedulerOfdmaAG::NrMacSchedulerOfdmaAG () : NrMacSchedulerOfdmaRR ()
+{
 }
 
 std::shared_ptr<NrMacSchedulerUeInfo>
-NrMacSchedulerOfdmaAG::CreateUeRepresentation (const NrMacCschedSapProvider::CschedUeConfigReqParameters& params) const
+NrMacSchedulerOfdmaAG::CreateUeRepresentation (const NrMacCschedSapProvider::CschedUeConfigReqParameters &params) const
 {
   NS_LOG_FUNCTION (this);
-  return std::make_shared<NrMacSchedulerUeInfoAG> (params.m_rnti, params.m_beamConfId,
-                                                  std::bind(&NrMacSchedulerOfdmaAG::GetNumRbPerRbg, this));
-}
-
-void NrMacSchedulerOfdmaAG::AssignedDlResources (const UePtrAndBufferReq &ue,
-                                            [[maybe_unused]] const FTResources &assigned,
-                                            [[maybe_unused]] const FTResources &totAssigned) const
-{
-  NS_LOG_FUNCTION (this);
-  GetFirst GetUe;
-  GetUe (ue)->UpdateDlMetric (m_dlAmc);
-}
-
-void
-NrMacSchedulerOfdmaAG::AssignedUlResources (const UePtrAndBufferReq &ue,
-                                            [[maybe_unused]] const FTResources &assigned,
-                                            [[maybe_unused]] const FTResources &totAssigned) const
-{
-  NS_LOG_FUNCTION (this);
-  GetFirst GetUe;
-  GetUe (ue)->UpdateUlMetric (m_ulAmc);
+  return std::make_shared <NrMacSchedulerUeInfoAG> (params.m_rnti, params.m_beamConfId,
+                                                    std::bind (&NrMacSchedulerOfdmaAG::GetNumRbPerRbg, this));
 }
 
 std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
@@ -69,7 +52,6 @@ std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
 NrMacSchedulerOfdmaAG::GetUeCompareDlFn () const
 {
   NS_LOG_FUNCTION (this);
-  // Sort UEs based on Age (descending order for priority)
   return NrMacSchedulerUeInfoAG::CompareUeWeightsDl;
 }
 
@@ -77,17 +59,70 @@ std::function<bool(const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
                    const NrMacSchedulerNs3::UePtrAndBufferReq &rhs)>
 NrMacSchedulerOfdmaAG::GetUeCompareUlFn () const
 {
-  return [this](const NrMacSchedulerNs3::UePtrAndBufferReq &lhs,
-                const NrMacSchedulerNs3::UePtrAndBufferReq &rhs) {
-    uint16_t lueRnti = lhs.first->m_rnti;
-    uint16_t rueRnti = rhs.first->m_rnti;
+  NS_LOG_FUNCTION (this);
+  
+  return NrMacSchedulerUeInfoAG::CompareUeWeightsUl;
+}
 
-    uint64_t left_age = NrMacSchedulerNs3::GetAge(lueRnti);
-    uint64_t right_age = NrMacSchedulerNs3::GetAge(rueRnti);
+void NrMacSchedulerOfdmaAG::AssignedDlResources (const UePtrAndBufferReq &ue,
+                                                 [[maybe_unused]] const FTResources &assigned,
+                                                 const FTResources &totAssigned) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uePtr->UpdateDlAGMetric (totAssigned, m_dlAmc);
+}
 
-    NS_LOG_INFO("비교 1(좌) UE: " << lueRnti << "\t Age: " << left_age << "\t | \t비교 2(우) UE: " << rueRnti << "\t Age: " << right_age);
-    return left_age > right_age;
-  };
+void NrMacSchedulerOfdmaAG::NotAssignedDlResources (const NrMacSchedulerNs3::UePtrAndBufferReq &ue,
+                                                    [[maybe_unused]] const NrMacSchedulerNs3::FTResources &assigned,
+                                                    const NrMacSchedulerNs3::FTResources &totAssigned) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uePtr->UpdateDlAGMetric (totAssigned, m_dlAmc);
+}
+
+void NrMacSchedulerOfdmaAG::AssignedUlResources (const UePtrAndBufferReq &ue,
+                                                 [[maybe_unused]] const FTResources &assigned,
+                                                 const FTResources &totAssigned) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uint16_t ueRnti = ue.first->GetRnti();
+  uint64_t age = this->GetAge(ueRnti);
+  uePtr->UpdateAge (age);
+  uePtr->UpdateUlAGMetric (totAssigned, m_ulAmc);
+}
+
+void NrMacSchedulerOfdmaAG::NotAssignedUlResources (const NrMacSchedulerNs3::UePtrAndBufferReq &ue,
+                                                    [[maybe_unused]] const NrMacSchedulerNs3::FTResources &assigned,
+                                                    const NrMacSchedulerNs3::FTResources &totAssigned) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uint16_t ueRnti = ue.first->GetRnti();
+  uint64_t age = this->GetAge(ueRnti);
+  uePtr->UpdateAge (age);
+  uePtr->UpdateUlAGMetric (totAssigned, m_ulAmc);
+}
+
+void NrMacSchedulerOfdmaAG::BeforeDlSched (const UePtrAndBufferReq &ue,
+                                          const FTResources &assignableInIteration) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uePtr->CalculatePotentialTPutDl (assignableInIteration, m_dlAmc);
+}
+
+void NrMacSchedulerOfdmaAG::BeforeUlSched (const UePtrAndBufferReq &ue,
+                                           const FTResources &assignableInIteration) const
+{
+  NS_LOG_FUNCTION (this);
+  auto uePtr = std::dynamic_pointer_cast<NrMacSchedulerUeInfoAG> (ue.first);
+  uint16_t ueRnti = ue.first->GetRnti();
+  uint64_t age = this->GetAge(ueRnti);
+  uePtr->UpdateAge (age);
+  uePtr->CalculatePotentialTPutUl (assignableInIteration, m_ulAmc);
 }
 
 } // namespace ns3
